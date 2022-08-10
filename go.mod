@@ -3,20 +3,21 @@ module github.ibm.com/fabric-security-research/tss
 go 1.17
 
 require (
-	github.com/binance-chain/tss-lib v1.3.3
-	github.com/golang/protobuf v1.5.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
+	github.ibm.com/fabric-security-research/tss/mpc/binance v0.0.0-20220810141833-a33b8f03c3d4
 	go.uber.org/zap v1.22.0
 	google.golang.org/grpc v1.48.0
 )
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
+	github.com/binance-chain/tss-lib v1.3.3 // indirect
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/ipfs/go-log v0.0.1 // indirect
