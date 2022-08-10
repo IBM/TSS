@@ -1,3 +1,9 @@
+/*
+Copyright IBM Corp. All Rights Reserved.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
 package threshold
 
 import (
@@ -19,6 +25,7 @@ import (
 	comm "github.ibm.com/fabric-security-research/tss/net"
 	"github.ibm.com/fabric-security-research/tss/rbc"
 	"github.ibm.com/fabric-security-research/tss/testutil/tlsgen"
+	. "github.ibm.com/fabric-security-research/tss/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -93,7 +100,6 @@ func TestThreshold(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	start := time.Now()
 	for _, p := range parties {
-		go p.run()
 		go func(p *Scheme) {
 			defer wg.Done()
 			data, err := p.KeyGen(ctx, len(parties), len(parties)-1)
@@ -221,8 +227,6 @@ func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertP
 		return mpc.NewParty(id, loggers[id-1])
 	}
 
-	incMsgs := make(chan *IncMessage)
-
 	s := &Scheme{
 		Logger:        loggers[id-1],
 		KeyGenFactory: kgf,
@@ -258,17 +262,18 @@ func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertP
 				Broadcast:  broadcast,
 			}
 		},
-		IncMessages: incMsgs,
 	}
 
 	go func(in <-chan comm.InMsg) {
 		for msg := range in {
-			incMsgs <- &IncMessage{
+			inMsg :=  &IncMessage{
 				MsgType: msg.Type,
 				Data:    msg.Data,
 				Topic:   msg.Topic,
 				Source:  msg.From,
 			}
+
+			s.HandleMessage(inMsg)
 		}
 	}(in)
 	return stop, s
@@ -285,7 +290,7 @@ type receiver struct {
 	*rbc.Receiver
 }
 
-func (r *receiver) Receive(m Message, from uint16) {
+func (r *receiver) Receive(m RBCMessage, from uint16) {
 	r.Receiver.Receive(m, from)
 }
 

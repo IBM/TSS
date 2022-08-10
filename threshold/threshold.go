@@ -15,100 +15,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	. "github.ibm.com/fabric-security-research/tss/types"
 )
-
-type MsgType uint8
-
-const (
-	MsgTypeNone MsgType = iota
-	MsgTypeSync
-	MsgTypeMPC
-
-	dkgTopicName = "DKG"
-)
-
-type Logger interface {
-	Debugf(format string, a ...interface{})
-	Infof(format string, a ...interface{})
-	Warnf(format string, a ...interface{})
-	Errorf(format string, a ...interface{})
-}
-
-// UniversalID is a unique identifier across all parties in the universe.
-// It is only used to send messages to other parties, or to select a subset
-// of parties to run either DKG or signing.
-type UniversalID uint16
-
-// PartyID denotes the identifier of a party within an MPC protocol execution.
-// Multiple UniversalIDs can map into the same PartyID.
-type PartyID uint16
-
-// Membership provides information about the identifiers of the parties.
-// Each party has a global identifier and a local identifier.
-type Membership func() map[UniversalID]PartyID
-
-type SendFunc func(msgType uint8, topic []byte, msg []byte, to ...UniversalID)
-
-type SignerFactory func(id uint16) Signer
-
-type KeyGenFactory func(id uint16) KeyGenerator
-
-type KeyGenerator interface {
-	ClassifyMsg(msgBytes []byte) (uint8, bool, error)
-
-	Init(parties []uint16, threshold int, sendMsg func(msg []byte, isBroadcast bool, to uint16))
-
-	OnMsg(msgBytes []byte, from uint16, broadcast bool)
-
-	KeyGen(ctx context.Context) ([]byte, error)
-}
-
-type Signer interface {
-	ClassifyMsg(msgBytes []byte) (uint8, bool, error)
-
-	Init(parties []uint16, threshold int, sendMsg func(msg []byte, isBroadcast bool, to uint16))
-
-	OnMsg(msgBytes []byte, from uint16, broadcast bool)
-
-	SetShareData(shareData []byte) error
-
-	Sign(ctx context.Context, msg []byte) ([]byte, error)
-
-	ThresholdPK() ([]byte, error)
-}
-
-type SynchronizerFactory func(members []uint16, broadcast func(msg []byte)) Synchronizer
-
-type Synchronizer interface {
-	Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int) error
-
-	HandleMessage(from uint16, msg []byte)
-}
-
-type Message interface {
-	Round() uint8
-	Digest() []byte
-	WasBroadcast() bool
-	// If message isn't an ack, all values are zeroes
-	Ack() (digest []byte, sender uint16, msgRound uint8)
-}
-
-type BroadcastFunc func(digest string, sender uint16, msgRound uint8)
-
-type ForwardFunc func(msg interface{}, from uint16)
-
-type ReliableBroadcastFactory func(BroadcastFunc, ForwardFunc, int) ReliableBroadcast
-
-type ReliableBroadcast interface {
-	Receive(m Message, from uint16)
-}
-
-type IncMessage struct {
-	Data    []byte
-	Source  uint16
-	MsgType uint8
-	Topic   []byte
-}
 
 type Scheme struct {
 	// State
@@ -116,10 +25,9 @@ type Scheme struct {
 	setupOnce          sync.Once
 	lock               sync.RWMutex
 	syncsInProgress    map[string]func(uint16, []byte)
-	rbcInProgress      map[string]func(m Message, from uint16)
+	rbcInProgress      map[string]func(m RBCMessage, from uint16)
 	messageClassifiers map[string]func([]byte) (uint8, bool, error)
 	// Config
-	IncMessages   <-chan *IncMessage
 	Threshold     int
 	SelfID        UniversalID
 	Membership    Membership
@@ -132,14 +40,7 @@ type Scheme struct {
 	Logger        Logger
 }
 
-func (s *Scheme) run() {
-	for {
-		msg := <-s.IncMessages
-		s.handleMessage(msg)
-	}
-}
-
-func (s *Scheme) handleMessage(msg *IncMessage) {
+func (s *Scheme) HandleMessage(msg *IncMessage) {
 	switch msg.MsgType {
 	case uint8(MsgTypeSync):
 		s.handleSync(msg)
@@ -158,11 +59,6 @@ func (s *Scheme) handleSync(msg *IncMessage) {
 	s.lock.RUnlock()
 
 	if !exists {
-		s.lock.RLock()
-		for topic := range s.syncsInProgress {
-			s.Logger.Debugf("%s", hex.EncodeToString([]byte(topic))[:8])
-		}
-		defer s.lock.RUnlock()
 		s.Logger.Debugf("Received SYNC message for topic %s from %d but no instance expects it", hex.EncodeToString(msg.Topic)[:8], msg.Source)
 		return
 	}
@@ -179,7 +75,7 @@ func (s *Scheme) handleMPC(msg *IncMessage) {
 
 	if !rbcExists {
 		s.Logger.Warnf("Received MPC message for topic %s but no RBC instance expects it", hex.EncodeToString(msg.Topic)[:8])
-		s.Logger.Warnf("Message: %s", base64.StdEncoding.EncodeToString(msg.Data))
+		s.Logger.Warnf("RBCMessage: %s", base64.StdEncoding.EncodeToString(msg.Data))
 		return
 	}
 
@@ -203,7 +99,7 @@ func (s *Scheme) handleMPC(msg *IncMessage) {
 
 }
 
-func (s *Scheme) handleRBC(msg *IncMessage, rbcEncoding rbcEncoding, classifier func([]byte) (uint8, bool, error), handleRBC func(m Message, from uint16)) {
+func (s *Scheme) handleRBC(msg *IncMessage, rbcEncoding rbcEncoding, classifier func([]byte) (uint8, bool, error), handleRBC func(m RBCMessage, from uint16)) {
 	var rbcMsg rbcMsg
 	rawMsgBytes := rbcEncoding.Payload()
 	msgRound, broadcast, err := classifier(rawMsgBytes)
@@ -229,7 +125,7 @@ func (s *Scheme) handleRBC(msg *IncMessage, rbcEncoding rbcEncoding, classifier 
 	handleRBC(&rbcMsg, msg.Source)
 }
 
-func (s *Scheme) handleAck(msg *IncMessage, round uint8, sender uint16, digest []byte, handleRBC func(m Message, from uint16)) {
+func (s *Scheme) handleAck(msg *IncMessage, round uint8, sender uint16, digest []byte, handleRBC func(m RBCMessage, from uint16)) {
 	var rbcMsg rbcMsg
 
 	s.Logger.Debugf("Received RBC ack for topic %s with digest %s on round %d about %d from %d",
@@ -265,7 +161,7 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 		s.lock.Unlock()
 	}()
 
-	dkgTopicHash := hash([]byte(dkgTopicName))
+	dkgTopicHash := hash([]byte(DkgTopicName))
 
 	broadcastParties := excludeUniversal(membership.universalIdentifiers, s.SelfID)
 
@@ -286,6 +182,8 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 		sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
 		dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
 	}, totalParties)
+
+
 
 	cleanup := s.initializeHandlers(dkgTopicHash, sync.HandleMessage, rbc.Receive, dkgProtocolInstance.ClassifyMsg)
 	defer cleanup()
@@ -449,7 +347,7 @@ func membershipSyncTopicName(members []uint16) []byte {
 func (s *Scheme) initializeHandlers(
 	dkgTopicHash []byte,
 	syncHandler func(uint16, []byte),
-	rbcHandler func(m Message, from uint16),
+	rbcHandler func(m RBCMessage, from uint16),
 	classifierInstance func([]byte) (uint8, bool, error)) func() {
 
 	s.lock.Lock()
@@ -674,7 +572,7 @@ func (s *Scheme) prepareSigning(membership *membership, parties []PartyID, topic
 func (s *Scheme) initializeDKG(dkg KeyGenerator, threshold int, members []UniversalID, membership *membership) error {
 	membersWithoutMe := excludeUniversal(members, s.SelfID)
 
-	dkgTopicHash := hash([]byte(dkgTopicName))
+	dkgTopicHash := hash([]byte(DkgTopicName))
 
 	dkg.Init(universalIDsToUInts(members), threshold, func(msg []byte, isBroadcast bool, to uint16) {
 		var payload []byte
@@ -715,9 +613,54 @@ func (s *Scheme) initializeThresholdSigning(membership *membership, parties []Pa
 
 func (s *Scheme) setup() {
 	s.syncsInProgress = make(map[string]func(uint16, []byte))
-	s.rbcInProgress = make(map[string]func(m Message, from uint16))
+	s.rbcInProgress = make(map[string]func(m RBCMessage, from uint16))
 	s.messageClassifiers = make(map[string]func([]byte) (uint8, bool, error))
+
+	// Initialize thread safety wrappers for sync and RBC.
+	// They're needed to ensure that each instance processes a message at a time.
+	oldRBF := s.RBF
+	s.RBF = func(broadcast BroadcastFunc, fwd ForwardFunc, n int) ReliableBroadcast {
+		rbc := oldRBF(broadcast, fwd, n)
+		return &threadSafeRBC{
+			h: rbc.Receive,
+		}
+	}
+
+	oldSyncFactory := s.SyncFactory
+	s.SyncFactory = func(members []uint16, broadcast func(msg []byte)) Synchronizer {
+		sync := oldSyncFactory(members, broadcast)
+		return &threadSafeSync{
+			Synchronizer: sync,
+		}
+	}
+
 }
+
+type threadSafeSync struct {
+	lock sync.Mutex
+	Synchronizer
+}
+
+func (s *threadSafeSync) HandleMessage(from uint16, msg []byte) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+
+	s.Synchronizer.HandleMessage(from, msg)
+}
+
+type threadSafeRBC struct {
+	lock sync.Mutex
+	h func(m RBCMessage, from uint16)
+}
+
+func (r *threadSafeRBC) Receive(m RBCMessage, from uint16) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.h(m, from)
+}
+
 
 func hash(in []byte) []byte {
 	h := sha256.New()
@@ -779,7 +722,7 @@ func (r rbcEncoding) Ack() (digest []byte, sender uint16, msgRound uint8, err er
 		return nil, 0, 0, fmt.Errorf("message %s is shorter than 4 bytes", hex.EncodeToString(r))
 	}
 
-	// Message round is the first byte, a uint7
+	// RBCMessage round is the first byte, a uint7
 	msgRound = r[0]
 	// The next two bytes are the sender
 	sender = uint16(r[1]<<8) + uint16(r[2])
@@ -809,19 +752,6 @@ func UIntsToUniversalIDs(in []uint16) []UniversalID {
 	for i, n := range in {
 		res[i] = UniversalID(n)
 	}
-	return res
-}
-
-func excludeParties(in []PartyID, x PartyID) []PartyID {
-	var res []PartyID
-
-	for _, n := range in {
-		if x == n {
-			continue
-		}
-		res = append(res, n)
-	}
-
 	return res
 }
 
