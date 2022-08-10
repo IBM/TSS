@@ -1,0 +1,300 @@
+/*
+Copyright IBM Corp. All Rights Reserved.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
+package discovery
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"sync"
+	"time"
+)
+
+const (
+	defaultTimeout     = time.Second * 30
+	broadcastFrequency = 100
+)
+
+type Broadcast func(msg []byte)
+
+type Logger interface {
+	Debugf(format string, a ...interface{})
+	Warnf(format string, a ...interface{})
+}
+
+type uint16PRF func(uint16) []byte
+
+func makePRF(key []byte) uint16PRF {
+	h := hmac.New(sha256.New, key)
+
+	return func(x uint16) []byte {
+		defer h.Reset()
+		h.Write([]byte{byte(x), byte(x >> 8)})
+		return h.Sum(nil)
+	}
+}
+
+type topicPeerView struct {
+	memberToView *sync.Map // (id uint16) --> (ids []uint16)
+}
+
+type Membership []uint16
+
+type topicAndID struct {
+	topic topic
+	id    uint16
+}
+
+type topic string
+type tag string
+
+type Member struct {
+	// State
+	tagsToIDsAndTopics  sync.Map // tag --> topicAndID
+	topicsToMemberViews sync.Map // topic --> *topicPeerView
+	// Config
+	Membership Membership
+	Broadcast  Broadcast
+	Logger     Logger
+	ID         uint16
+}
+
+// Synchronize agrees on a common ordered set of identifiers, passing them to f().
+// The identifiers agreed upon correspond to all members that invoked Synchronize() with the given topic name.
+// In order for this method to run securely, the topic name must be sampled from a high entropy distribution.
+// Returns error if the deadline of the context expires, or if too many members were agreed upon.
+func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int) error {
+	topic := topic(topicToSynchronizeOn)
+	topicHex := hex.EncodeToString(topicToSynchronizeOn)
+
+	m.Logger.Debugf("Synchronizing on topic %s, expecting %d members including ourselves", topicHex[:8], expectedMemberCount)
+
+	m.registerInterestInTopic(topic)
+	m.precomputeTagsForTopic(topic, topicHex)
+
+	myTag := m.computeMyTag(topic)
+	myTagHex := hex.EncodeToString([]byte(myTag))
+	m.Logger.Debugf("Our tag for topic %s is: %s", topicHex[:8], myTagHex[:8])
+
+	ticker := m.broadcastScheduleForTopic(ctx, topicHex)
+	defer ticker.Stop()
+
+	var elapsedTicks int
+	var members []uint16
+
+	for len(members) < expectedMemberCount {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("only %d out of %d parties synchronized", len(members), expectedMemberCount)
+		case <-ticker.C:
+			members = m.intersectedView(topic, topicHex[:8])
+			elapsedTicks++
+			myView := m.myMemberViewSorted(topic)
+			m.Logger.Debugf("Broadcasting my tag (%s) for %s and current view: %v", myTagHex[:8], topicHex[:8], myView)
+			msgToBroadcast := encodeTagAndMembershipList(myTag, myView)
+			m.Broadcast(msgToBroadcast)
+		}
+	}
+
+	if len(members) > expectedMemberCount {
+		return fmt.Errorf("too many members (%d) for %s, expected only %d", len(members), topicHex, expectedMemberCount)
+	}
+
+	m.Logger.Debugf("Synchronized on topic %s with members %v", topicHex[:8], members)
+
+	sortIntSlice(members)
+	f(members)
+
+	// We stick around for the remaining of the time to assist stragglers that haven't completed yet
+	msgToBroadcast := encodeTagAndMembershipList(myTag, members)
+	for elapsedTicks < broadcastFrequency {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			m.Logger.Debugf("Broadcasting my tag (%s) for %s and final view: %v", myTagHex[:8], topicHex[:8], members)
+			m.Broadcast(msgToBroadcast)
+			elapsedTicks++
+		}
+	}
+
+	return nil
+}
+
+func (m *Member) broadcastScheduleForTopic(ctx context.Context, topicHex string) *time.Ticker {
+	now := time.Now()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = now.Add(defaultTimeout)
+	}
+
+	timeToComplete := deadline.Sub(now)
+	frequency := timeToComplete / broadcastFrequency
+
+	m.Logger.Debugf("We have %v to synchronize on %s, broadcasting %d messages once per %v", topicHex[:8], timeToComplete, broadcastFrequency, frequency)
+
+	ticker := time.NewTicker(frequency)
+	return ticker
+}
+
+type view struct {
+	size    int
+	content string
+}
+
+func (m *Member) intersectedView(topic topic, topicHex string) []uint16 {
+	tpv, exists := m.topicsToMemberViews.Load(topic)
+	if !exists {
+		return nil
+	}
+
+	var members []uint16
+
+	views := make(map[view]struct{})
+
+	memberToView := tpv.(*topicPeerView).memberToView
+	memberToView.Range(func(_, v interface{}) bool {
+		members = v.([]uint16)
+		views[view{
+			content: fmt.Sprintf("%v", members),
+			size:    len(members),
+		}] = struct{}{}
+		return true
+	})
+
+	myView := m.myMemberViewSorted(topic)
+	views[view{
+		size:    len(myView),
+		content: fmt.Sprintf("%v", myView),
+	}] = struct{}{}
+
+	if len(views) != 1 {
+		m.Logger.Debugf("Disjoint views for topic %s: %v", topicHex[:8], views)
+		return nil
+	}
+
+	return members
+}
+
+func (m *Member) myMemberViewSorted(topic topic) intSlice {
+	v, exists := m.topicsToMemberViews.Load(topic)
+	if !exists {
+		return nil
+	}
+
+	res := intSlice{m.ID}
+
+	v.(*topicPeerView).memberToView.Range(func(key, _ interface{}) bool {
+		res = append(res, key.(uint16))
+		return true
+	})
+
+	sortIntSlice(res)
+
+	return res
+}
+
+func (m *Member) registerInterestInTopic(topic topic) {
+	m.topicsToMemberViews.Store(topic, &topicPeerView{
+		memberToView: &sync.Map{},
+	})
+}
+
+func (m *Member) precomputeTagsForTopic(topic topic, topicHex string) {
+	PRF := makePRF([]byte(topic))
+	for _, id := range m.Membership {
+		if id == m.ID {
+			continue
+		}
+
+		tag := tag(PRF(id))
+
+		m.Logger.Debugf("%s[%d] ==> %s", topicHex[:8], id, hex.EncodeToString([]byte(tag[:8])))
+
+		m.tagsToIDsAndTopics.Store(tag, topicAndID{
+			topic: topic,
+			id:    id,
+		})
+	}
+}
+
+func (m *Member) computeMyTag(topic topic) tag {
+	return tag(makePRF([]byte(topic))(m.ID))
+}
+
+func (m *Member) HandleMessage(from uint16, msg []byte) {
+	tag, peers, err := decodeTagAndMembershipList(msg)
+	if err != nil {
+		m.Logger.Warnf("Failed decoding message (%s) from %d: %v", hex.EncodeToString(msg), from)
+	}
+
+	v, exists := m.tagsToIDsAndTopics.Load(tag)
+	if !exists {
+		return
+	}
+
+	topicAndID := v.(topicAndID)
+	if topicAndID.id != from {
+		m.Logger.Debugf("Got topic associated to %d from %d", topicAndID.id, from)
+		return
+	}
+
+	tpv, exists := m.topicsToMemberViews.Load(topicAndID.topic)
+	if !exists {
+		return
+	}
+
+	topicPeerView := tpv.(*topicPeerView)
+	topicPeerView.memberToView.Store(from, peers)
+}
+
+func encodeTagAndMembershipList(tag tag, peers []uint16) []byte {
+	if len(tag) != 32 {
+		panic("tag should be 32 bytes")
+	}
+	size := 32 + len(peers)*2
+	buff := make([]byte, size)
+	copy(buff, tag)
+	offset := 32
+	for _, p := range peers {
+		buff[offset] = byte(p)
+		buff[offset+1] = byte(p >> 8)
+		offset += 2
+	}
+
+	return buff
+}
+
+func decodeTagAndMembershipList(msg []byte) (tag, []uint16, error) {
+	if len(msg) < 32 {
+		return "", nil, fmt.Errorf("message too small (%d bytes), should be 32 bytes", len(msg))
+	}
+
+	var peers []uint16
+
+	offset := 32
+	for offset < len(msg) {
+		p := uint16(msg[offset+1]<<8) + uint16(msg[offset])
+		peers = append(peers, p)
+		offset += 2
+	}
+
+	return tag(msg[:32]), peers, nil
+}
+
+func sortIntSlice(in intSlice) {
+	sort.Sort(in)
+}
+
+type intSlice []uint16
+
+func (x intSlice) Len() int           { return len(x) }
+func (x intSlice) Less(i, j int) bool { return x[i] < x[j] }
+func (x intSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
