@@ -17,12 +17,9 @@ import (
 	"time"
 )
 
-const (
-	defaultTimeout     = time.Second * 30
-	broadcastFrequency = 100
-)
-
 type Broadcast func(msg []byte)
+
+type Send func(msg []byte, to uint16)
 
 type Logger interface {
 	Debugf(format string, a ...interface{})
@@ -30,6 +27,15 @@ type Logger interface {
 }
 
 type uint16PRF func(uint16) []byte
+
+type msgType uint8
+
+const (
+	msgTypeNone msgType = iota
+	msgTypeMembership
+	msgTypeQuery
+	msgTypeResponse
+)
 
 func makePRF(key []byte) uint16PRF {
 	h := hmac.New(sha256.New, key)
@@ -42,7 +48,9 @@ func makePRF(key []byte) uint16PRF {
 }
 
 type topicPeerView struct {
-	memberToView *sync.Map // (id uint16) --> (ids []uint16)
+	memberToView      *sync.Map // (id uint16) --> (ids []uint16)
+	responsesReceived *sync.Map // uint16 --> struct{}
+	responses         chan []uint16
 }
 
 type Membership []uint16
@@ -62,6 +70,7 @@ type Member struct {
 	// Config
 	Membership Membership
 	Broadcast  Broadcast
+	Send       Send
 	Logger     Logger
 	ID         uint16
 }
@@ -69,21 +78,27 @@ type Member struct {
 // Synchronize agrees on a common ordered set of identifiers, passing them to f().
 // The identifiers agreed upon correspond to all members that invoked Synchronize() with the given topic name.
 // In order for this method to run securely, the topic name must be sampled from a high entropy distribution.
+// The given probeInterval specifies how frequent we send out a synchronization message.
+// The lower the probeInterval the lower the latency, but a higher amount of messages sent.
 // Returns error if the deadline of the context expires, or if too many members were agreed upon.
-func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int) error {
+func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int, probeInterval time.Duration) error {
 	topic := topic(topicToSynchronizeOn)
 	topicHex := hex.EncodeToString(topicToSynchronizeOn)
 
 	m.Logger.Debugf("Synchronizing on topic %s, expecting %d members including ourselves", topicHex[:8], expectedMemberCount)
 
-	m.registerInterestInTopic(topic)
+	tpv, err := m.registerInterestInTopic(topic)
+	if err != nil {
+		return err
+	}
+
 	m.precomputeTagsForTopic(topic, topicHex)
 
 	myTag := m.computeMyTag(topic)
 	myTagHex := hex.EncodeToString([]byte(myTag))
 	m.Logger.Debugf("Our tag for topic %s is: %s", topicHex[:8], myTagHex[:8])
 
-	ticker := m.broadcastScheduleForTopic(ctx, topicHex)
+	ticker := time.NewTicker(probeInterval)
 	defer ticker.Stop()
 
 	var elapsedTicks int
@@ -94,54 +109,45 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 		case <-ctx.Done():
 			return fmt.Errorf("only %d out of %d parties synchronized", len(members), expectedMemberCount)
 		case <-ticker.C:
-			members = m.intersectedView(topic, topicHex[:8])
+			members = m.intersectedView(topic, topicHex[:8], tpv)
 			elapsedTicks++
 			myView := m.myMemberViewSorted(topic)
 			m.Logger.Debugf("Broadcasting my tag (%s) for %s and current view: %v", myTagHex[:8], topicHex[:8], myView)
-			msgToBroadcast := encodeTagAndMembershipList(myTag, myView)
+			msgToBroadcast := encodeTagAndMembershipList(msgTypeMembership, myTag, myView)
 			m.Broadcast(msgToBroadcast)
 		}
 	}
 
 	if len(members) > expectedMemberCount {
-		return fmt.Errorf("too many members (%d) for %s, expected only %d", len(members), topicHex, expectedMemberCount)
+		return fmt.Errorf("too many members (%d) for topic %s, expected only %d", len(members), topicHex, expectedMemberCount)
 	}
-
-	m.Logger.Debugf("Synchronized on topic %s with members %v", topicHex[:8], members)
 
 	sortIntSlice(members)
 	f(members)
 
-	// We stick around for the remaining of the time to assist stragglers that haven't completed yet
-	msgToBroadcast := encodeTagAndMembershipList(myTag, members)
-	for elapsedTicks < broadcastFrequency {
+	m.Logger.Debugf("Synchronized on topic %s with members %v", topicHex[:8], members)
+
+	msgToBroadcast := encodeTagAndMembershipList(msgTypeQuery, myTag, members)
+	m.Broadcast(msgToBroadcast)
+
+	myView := fmt.Sprintf("%v", members)
+
+	acknowledgementsLeft := expectedMemberCount - 1
+
+	for acknowledgementsLeft > 0 {
 		select {
+		case peers := <-tpv.responses:
+			if myView != fmt.Sprintf("%v", peers) {
+				continue
+			}
+			acknowledgementsLeft--
 		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			m.Logger.Debugf("Broadcasting my tag (%s) for %s and final view: %v", myTagHex[:8], topicHex[:8], members)
-			m.Broadcast(msgToBroadcast)
-			elapsedTicks++
+			return fmt.Errorf("haven't received %d out of %d acknowledgements", acknowledgementsLeft, expectedMemberCount - 1)
 		}
+
 	}
 
 	return nil
-}
-
-func (m *Member) broadcastScheduleForTopic(ctx context.Context, topicHex string) *time.Ticker {
-	now := time.Now()
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = now.Add(defaultTimeout)
-	}
-
-	timeToComplete := deadline.Sub(now)
-	frequency := timeToComplete / broadcastFrequency
-
-	m.Logger.Debugf("We have %v to synchronize on %s, broadcasting %d messages once per %v", topicHex[:8], timeToComplete, broadcastFrequency, frequency)
-
-	ticker := time.NewTicker(frequency)
-	return ticker
 }
 
 type view struct {
@@ -149,17 +155,22 @@ type view struct {
 	content string
 }
 
-func (m *Member) intersectedView(topic topic, topicHex string) []uint16 {
-	tpv, exists := m.topicsToMemberViews.Load(topic)
-	if !exists {
-		return nil
-	}
+type views map[view]struct{}
 
+func (vs views) String() string {
+	s := make([]string, 0, len(vs))
+	for v := range vs {
+		s = append(s, v.content)
+	}
+	return fmt.Sprintf("%s", s)
+}
+
+func (m *Member) intersectedView(topic topic, topicHex string, tpv *topicPeerView) []uint16 {
 	var members []uint16
 
-	views := make(map[view]struct{})
+	views := make(views)
 
-	memberToView := tpv.(*topicPeerView).memberToView
+	memberToView := tpv.memberToView
 	memberToView.Range(func(_, v interface{}) bool {
 		members = v.([]uint16)
 		views[view{
@@ -201,10 +212,20 @@ func (m *Member) myMemberViewSorted(topic topic) intSlice {
 	return res
 }
 
-func (m *Member) registerInterestInTopic(topic topic) {
-	m.topicsToMemberViews.Store(topic, &topicPeerView{
-		memberToView: &sync.Map{},
-	})
+func (m *Member) registerInterestInTopic(topic topic) (*topicPeerView, error) {
+	tpv := &topicPeerView{
+		memberToView:      &sync.Map{},
+		responses:         make(chan []uint16, len(m.Membership)-1),
+		responsesReceived: &sync.Map{},
+	}
+	_, loaded := m.topicsToMemberViews.LoadOrStore(topic, tpv)
+
+	if loaded {
+		topicHex := hex.EncodeToString([]byte(topic))
+		return nil, fmt.Errorf("already synchronizing on topic %s", topicHex)
+	}
+
+	return tpv, nil
 }
 
 func (m *Member) precomputeTagsForTopic(topic topic, topicHex string) {
@@ -230,7 +251,7 @@ func (m *Member) computeMyTag(topic topic) tag {
 }
 
 func (m *Member) HandleMessage(from uint16, msg []byte) {
-	tag, peers, err := decodeTagAndMembershipList(msg)
+	msgType, tag, peers, err := decodeTagAndMembershipList(msg)
 	if err != nil {
 		m.Logger.Warnf("Failed decoding message (%s) from %d: %v", hex.EncodeToString(msg), from)
 	}
@@ -251,18 +272,59 @@ func (m *Member) HandleMessage(from uint16, msg []byte) {
 		return
 	}
 
+	switch msgType {
+	case msgTypeMembership:
+		m.handleMembershipMessage(from, tpv, peers)
+	case msgTypeQuery:
+		m.respondToQuery(from, topicAndID)
+	case msgTypeResponse:
+		m.handleResponse(from, peers, tpv)
+	default:
+		panic(fmt.Sprintf("programming error: msgType %d is not supported but passed decoding", msgType))
+	}
+}
+
+func (m *Member) handleResponse(from uint16, peers []uint16, tpv interface{}) {
+	topicPeerView := tpv.(*topicPeerView)
+	_, existed := topicPeerView.responsesReceived.LoadOrStore(from, struct{}{})
+	if !existed {
+		topicPeerView.responses <- peers
+	}
+}
+
+func (m *Member) handleMembershipMessage(from uint16, tpv interface{}, peers []uint16) {
 	topicPeerView := tpv.(*topicPeerView)
 	topicPeerView.memberToView.Store(from, peers)
 }
 
-func encodeTagAndMembershipList(tag tag, peers []uint16) []byte {
+func (m *Member) respondToQuery(from uint16, topicAndID topicAndID) {
+	myTag := m.computeMyTag(topicAndID.topic)
+	myView := m.myMemberViewSorted(topicAndID.topic)
+	reply := encodeTagAndMembershipList(msgTypeResponse, myTag, myView)
+	m.Send(reply, from)
+}
+
+func encodeTagAndMembershipList(msgType msgType, tag tag, peers []uint16) []byte {
 	if len(tag) != 32 {
 		panic("tag should be 32 bytes")
 	}
-	size := 32 + len(peers)*2
+
+	if msgType < msgTypeMembership || msgType > msgTypeResponse {
+		panic(fmt.Sprintf("invalid msgType: %d", msgType))
+	}
+
+	if msgType == msgTypeQuery {
+		buff := make([]byte, 1, 33)
+		buff[0] = byte(msgType)
+		buff = append(buff, tag...)
+		return buff
+	}
+
+	size := 32 + len(peers)*2 + 1
 	buff := make([]byte, size)
-	copy(buff, tag)
-	offset := 32
+	buff[0] = uint8(msgType)
+	copy(buff[1:], tag)
+	offset := 33
 	for _, p := range peers {
 		buff[offset] = byte(p)
 		buff[offset+1] = byte(p >> 8)
@@ -272,21 +334,30 @@ func encodeTagAndMembershipList(tag tag, peers []uint16) []byte {
 	return buff
 }
 
-func decodeTagAndMembershipList(msg []byte) (tag, []uint16, error) {
+func decodeTagAndMembershipList(msg []byte) (msgType, tag, []uint16, error) {
 	if len(msg) < 32 {
-		return "", nil, fmt.Errorf("message too small (%d bytes), should be 32 bytes", len(msg))
+		return 0, "", nil, fmt.Errorf("message too small (%d bytes), should be 32 bytes", len(msg))
+	}
+
+	msgType := msgType(msg[0])
+	if msgType < msgTypeMembership || msgType > msgTypeResponse {
+		return 0, "", nil, fmt.Errorf("invalid message type: %d", msgType)
+	}
+
+	if msgType == msgTypeQuery {
+		return msgType, tag(msg[1:33]), nil, nil
 	}
 
 	var peers []uint16
 
-	offset := 32
+	offset := 33
 	for offset < len(msg) {
 		p := uint16(msg[offset+1]<<8) + uint16(msg[offset])
 		peers = append(peers, p)
 		offset += 2
 	}
 
-	return tag(msg[:32]), peers, nil
+	return msgType, tag(msg[1:33]), peers, nil
 }
 
 func sortIntSlice(in intSlice) {

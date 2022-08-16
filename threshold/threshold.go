@@ -15,8 +15,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.ibm.com/fabric-security-research/tss/types"
+)
+
+const (
+	syncInterval = time.Millisecond * 200
 )
 
 type Scheme struct {
@@ -168,6 +173,8 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 	// We use a synchronizer to wait for all parties to be ready to initialize the DKG
 	sync := s.SyncFactory(universalIDsToUInts(membership.universalIdentifiers), func(msg []byte) {
 		s.Send(uint8(MsgTypeSync), dkgTopicHash, msg, broadcastParties...)
+	}, func(msg []byte, to uint16) {
+		s.Send(uint8(MsgTypeSync), dkgTopicHash, msg, UniversalID(to))
 	})
 
 	dkgProtocolInstance := s.KeyGenFactory(uint16(s.SelfID))
@@ -294,6 +301,8 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 
 		sync := s.SyncFactory(members, func(msg []byte) {
 			s.Send(uint8(MsgTypeSync), membersSyncTopicHash, msg, broadcastParties...)
+		}, func(msg []byte, to uint16) {
+			s.Send(uint8(MsgTypeSync), membersSyncTopicHash, msg, UniversalID(to))
 		})
 
 		s.lock.Lock()
@@ -308,7 +317,7 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 
 		go sync.Synchronize(ctx, func([]uint16) {
 			close(membershipConsensus)
-		}, membersSyncTopicHash, n)
+		}, membersSyncTopicHash, n, syncInterval)
 
 		result, err := dkgProtocolInstance.KeyGen(ctx)
 
@@ -316,7 +325,7 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 	}
 
 	go func() {
-		if err := sync.Synchronize(ctx, callback, dkgTopicHash, n); err != nil {
+		if err := sync.Synchronize(ctx, callback, dkgTopicHash, n, syncInterval); err != nil {
 			resultChan <- mpcResult{data: nil, err: err}
 		}
 	}()
@@ -453,6 +462,8 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 
 		sync := s.SyncFactory(signers, func(msg []byte) {
 			s.Send(uint8(MsgTypeSync), syncTopic, msg, signersWithoutMe...)
+		}, func(msg []byte, to uint16) {
+			s.Send(uint8(MsgTypeSync), syncTopic, msg, UniversalID(to))
 		})
 
 		s.lock.Lock()
@@ -466,6 +477,7 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 		}
 
 		s.Logger.Infof("Synchronizing on pre-signing topic %s with %v", hex.EncodeToString(syncTopic)[:8], signers)
+
 		err = sync.Synchronize(ctx, func([]uint16) {
 			defer cleanupSyncTopic()
 			defer cleanup()
@@ -475,7 +487,7 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 				sig []byte
 				err error
 			}{sig: signature, err: err}
-		}, syncTopic, len(signers))
+		}, syncTopic, len(signers), syncInterval)
 		if err != nil {
 			s.Logger.Warnf("Failed synchronizing on signing topic: %v", err)
 			cleanupSyncTopic()
@@ -488,7 +500,7 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 	}
 
 	go func() {
-		if err := sync.Synchronize(ctx, initializeSigningInstance, topicHash, s.Threshold+1); err != nil {
+		if err := sync.Synchronize(ctx, initializeSigningInstance, topicHash, s.Threshold+1, syncInterval); err != nil {
 			s.Logger.Errorf("Failed synchronizing on signing topic %s", hex.EncodeToString(topicHash))
 			resultChan <- struct {
 				sig []byte
@@ -520,6 +532,8 @@ func (s *Scheme) initializeSyncForSigning(topic string, topicHash []byte, member
 	// We will synchronize on the topic (hash) to find out the parties that will participate in the signing
 	sync := s.SyncFactory(universalIDsToUInts(members), func(msg []byte) {
 		s.Send(uint8(MsgTypeSync), topicHash, msg, membersWithoutMe...)
+	}, func(msg []byte, to uint16) {
+		s.Send(uint8(MsgTypeSync), topicHash, msg, UniversalID(to))
 	})
 
 	s.lock.Lock()
@@ -627,8 +641,8 @@ func (s *Scheme) setup() {
 	}
 
 	oldSyncFactory := s.SyncFactory
-	s.SyncFactory = func(members []uint16, broadcast func(msg []byte)) Synchronizer {
-		sync := oldSyncFactory(members, broadcast)
+	s.SyncFactory = func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer {
+		sync := oldSyncFactory(members, broadcast, send)
 		return &threadSafeSync{
 			Synchronizer: sync,
 		}

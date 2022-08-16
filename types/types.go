@@ -6,7 +6,10 @@ SPDX-License-Identifier: Apache-2.0
 
 package tss
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type MsgType uint8
 
@@ -17,6 +20,7 @@ const (
 
 	DkgTopicName = "DKG"
 )
+
 // Logger logs messages in a synchronized fashion to the same destination (usually to a file)
 type Logger interface {
 	Debugf(format string, a ...interface{})
@@ -68,10 +72,10 @@ type Signer interface {
 	ThresholdPK() ([]byte, error)
 }
 
-type SynchronizerFactory func(members []uint16, broadcast func(msg []byte)) Synchronizer
+type SynchronizerFactory func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer
 
 type Synchronizer interface {
-	Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int) error
+	Synchronize(ctx context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int, interval time.Duration) error
 
 	HandleMessage(from uint16, msg []byte)
 }

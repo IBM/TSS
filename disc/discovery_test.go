@@ -22,21 +22,24 @@ import (
 func TestEncodeDecode(t *testing.T) {
 	tag := tag(make([]byte, 32))
 	membership := []uint16{1, 3, 5, 7, 11, 13}
-	tag2, membership2, err := decodeTagAndMembershipList(encodeTagAndMembershipList(tag, membership))
+	msgType, tag2, membership2, err := decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeMembership, tag, membership))
 	assert.NoError(t, err)
 	assert.Equal(t, tag, tag2)
 	assert.Equal(t, membership, membership2)
+	assert.Equal(t, msgTypeMembership, msgType)
 
-	tag2, membership2, err = decodeTagAndMembershipList(encodeTagAndMembershipList(tag, nil))
+	msgType, tag2, membership2, err = decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeQuery, tag, nil))
 	assert.NoError(t, err)
 	assert.Empty(t, membership2)
 	assert.Equal(t, tag, tag2)
+	assert.Equal(t, msgTypeQuery, msgType)
+
 
 	assert.Panics(t, func() {
-		decodeTagAndMembershipList(encodeTagAndMembershipList(tag[:30], nil))
+		decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeMembership, tag[:30], nil))
 	})
 
-	_, _, err = decodeTagAndMembershipList([]byte{1, 2, 3})
+	_, _, _, err = decodeTagAndMembershipList([]byte{1, 2, 3})
 	assert.EqualError(t, err, "message too small (3 bytes), should be 32 bytes")
 }
 
@@ -68,6 +71,10 @@ func TestSynchronize(t *testing.T) {
 				}
 				members[j].HandleMessage(from, msg)
 			}
+		}
+
+		members[i].Send = func(msg []byte, to uint16) {
+			members[to].HandleMessage(from, msg)
 		}
 	}
 
@@ -123,8 +130,8 @@ func TestSynchronize(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 
-		err := members.synchronize(f, []byte("everyone"), n/2, ctx)
-		assert.EqualError(t, err, "too many members (13) for 65766572796f6e65, expected only 6")
+		err := members.synchronize(f, []byte("too much"), n/2, ctx)
+		assert.EqualError(t, err, "too many members (13) for topic 746f6f206d756368, expected only 6")
 	})
 
 	t.Run("too few parties than expected", func(t *testing.T) {
@@ -154,7 +161,7 @@ func (ms members) synchronize(f func([]uint16), topicToSynchronizeOn []byte, exp
 	for _, m := range ms {
 		go func(m *Member) {
 			defer wg.Done()
-			err := m.Synchronize(ctx, f, topicToSynchronizeOn, expectedPeerCount)
+			err := m.Synchronize(ctx, f, topicToSynchronizeOn, expectedPeerCount, time.Millisecond * 100)
 			if err != nil {
 				atomicErr.Store(err)
 			}

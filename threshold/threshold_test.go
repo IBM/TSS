@@ -117,7 +117,7 @@ func TestThreshold(t *testing.T) {
 
 	fmt.Println("Running signing")
 
-	k := 1
+	k := 10
 	concurrentWg := sync.WaitGroup{}
 	concurrentWg.Add(k)
 
@@ -254,12 +254,13 @@ func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertP
 			}
 			return &receiver{Receiver: r}
 		},
-		SyncFactory: func(members []uint16, broadcast func(msg []byte)) Synchronizer {
+		SyncFactory: func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer {
 			return &discovery.Member{
 				Membership: members,
 				Logger:     loggers[id-1],
 				ID:         uint16(id),
 				Broadcast:  broadcast,
+				Send: send,
 			}
 		},
 	}
