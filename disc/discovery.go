@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -48,6 +49,9 @@ func makePRF(key []byte) uint16PRF {
 }
 
 type topicPeerView struct {
+	minimumMessageCount          uint32
+	receivedMsgCount uint32
+	receivedMsg       chan struct{}
 	memberToView      *sync.Map // (id uint16) --> (ids []uint16)
 	responsesReceived *sync.Map // uint16 --> struct{}
 	responses         chan []uint16
@@ -87,7 +91,7 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 
 	m.Logger.Debugf("Synchronizing on topic %s, expecting %d members including ourselves", topicHex[:8], expectedMemberCount)
 
-	tpv, err := m.registerInterestInTopic(topic)
+	tpv, err := m.registerInterestInTopic(topic, expectedMemberCount - 1)
 	if err != nil {
 		return err
 	}
@@ -101,20 +105,19 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 	ticker := time.NewTicker(probeInterval)
 	defer ticker.Stop()
 
-	var elapsedTicks int
 	var members []uint16
 
 	for len(members) < expectedMemberCount {
+		members = m.intersectedView(topic, topicHex[:8], tpv)
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("only %d out of %d parties synchronized", len(members), expectedMemberCount)
 		case <-ticker.C:
-			members = m.intersectedView(topic, topicHex[:8], tpv)
-			elapsedTicks++
 			myView := m.myMemberViewSorted(topic)
 			m.Logger.Debugf("Broadcasting my tag (%s) for %s and current view: %v", myTagHex[:8], topicHex[:8], myView)
 			msgToBroadcast := encodeTagAndMembershipList(msgTypeMembership, myTag, myView)
 			m.Broadcast(msgToBroadcast)
+		case <-tpv.receivedMsg:
 		}
 	}
 
@@ -142,7 +145,7 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 			}
 			acknowledgementsLeft--
 		case <-ctx.Done():
-			return fmt.Errorf("haven't received %d out of %d acknowledgements", acknowledgementsLeft, expectedMemberCount - 1)
+			return fmt.Errorf("haven't received %d out of %d acknowledgements", acknowledgementsLeft, expectedMemberCount-1)
 		}
 
 	}
@@ -212,8 +215,10 @@ func (m *Member) myMemberViewSorted(topic topic) intSlice {
 	return res
 }
 
-func (m *Member) registerInterestInTopic(topic topic) (*topicPeerView, error) {
+func (m *Member) registerInterestInTopic(topic topic, minimumMessageCount int) (*topicPeerView, error) {
 	tpv := &topicPeerView{
+		minimumMessageCount: uint32(minimumMessageCount),
+		receivedMsg:       make(chan struct{}, 1),
 		memberToView:      &sync.Map{},
 		responses:         make(chan []uint16, len(m.Membership)-1),
 		responsesReceived: &sync.Map{},
@@ -295,6 +300,15 @@ func (m *Member) handleResponse(from uint16, peers []uint16, tpv interface{}) {
 func (m *Member) handleMembershipMessage(from uint16, tpv interface{}, peers []uint16) {
 	topicPeerView := tpv.(*topicPeerView)
 	topicPeerView.memberToView.Store(from, peers)
+
+	if atomic.AddUint32(&topicPeerView.receivedMsgCount, 1) < topicPeerView.minimumMessageCount {
+		return
+	}
+
+	select {
+	case topicPeerView.receivedMsg <- struct{}{}:
+	default:
+	}
 }
 
 func (m *Member) respondToQuery(from uint16, topicAndID topicAndID) {
