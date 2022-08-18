@@ -97,7 +97,7 @@ func TestThreshold(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(len(parties))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	start := time.Now()
 	for _, p := range parties {
 		go func(p *Scheme) {
@@ -113,29 +113,31 @@ func TestThreshold(t *testing.T) {
 	cancel()
 
 	elapsed := time.Since(start)
-	fmt.Println("DKG elapsed", elapsed)
+	t.Log("DKG elapsed", elapsed)
 
-	fmt.Println("Running signing")
+	t.Log("Running signing")
 
 	k := 10
 	concurrentWg := sync.WaitGroup{}
 	concurrentWg.Add(k)
 
 	for i := 0; i < k; i++ {
+		// Sleep to simulate parties starting at different times
+		time.Sleep(time.Millisecond * 50)
 		go func(i int) {
 			defer concurrentWg.Done()
-			thresholdSign(t, i, parties)
+			thresholdSign(t, i, parties, k)
 		}(i)
 	}
 
 	concurrentWg.Wait()
 }
 
-func thresholdSign(t *testing.T, i int, parties []*Scheme) {
+func thresholdSign(t *testing.T, i int, parties []*Scheme, k int) {
 	msg := fmt.Sprintf("msg %d", i)
 	topic := fmt.Sprintf("topic %d", i)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second * time.Duration(k) * 2)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -144,6 +146,8 @@ func thresholdSign(t *testing.T, i int, parties []*Scheme) {
 	start := time.Now()
 
 	for _, p := range parties {
+		// Sleep to simulate parties starting at different times
+		time.Sleep(time.Millisecond * 50)
 		go func(p *Scheme) {
 			defer wg.Done()
 			signature, err := p.Sign(ctx, []byte(msg), topic)
@@ -163,7 +167,7 @@ func thresholdSign(t *testing.T, i int, parties []*Scheme) {
 	wg.Wait()
 
 	elapsed := time.Since(start)
-	fmt.Println("Signing elapsed", elapsed)
+	t.Log("Signing elapsed", elapsed)
 }
 
 func TestRBCEncoding(t *testing.T) {
