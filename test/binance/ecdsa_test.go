@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package binance
+package binance_test
 
 import (
 	"context"
@@ -19,9 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	discovery "github.ibm.com/fabric-security-research/tss/disc"
 	mpc "github.ibm.com/fabric-security-research/tss/mpc/binance"
 	comm "github.ibm.com/fabric-security-research/tss/net"
