@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.ibm.com/fabric-security-research/tss/types"
@@ -319,6 +320,13 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 			close(membershipConsensus)
 		}, membersSyncTopicHash, n, syncInterval)
 
+		select {
+		case <-membershipConsensus:
+			case <- ctx.Done():
+				resultChan <- mpcResult{err: fmt.Errorf("could not reach consensus on membership")}
+				return
+		}
+
 		result, err := dkgProtocolInstance.KeyGen(ctx)
 
 		resultChan <- mpcResult{data: result, err: err, parties: parties}
@@ -329,12 +337,6 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 			resultChan <- mpcResult{data: nil, err: err}
 		}
 	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, nil, fmt.Errorf("could not reach consensus on membership")
-	case <-membershipConsensus:
-	}
 
 	select {
 	case <-ctx.Done():
@@ -436,6 +438,8 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 		s.lock.Unlock()
 	}
 
+	var signedSuccessfully uint32
+
 	initializeSigningInstance := func(signers []uint16) {
 		partyIDs, err := membership.partyIDsByUniversalIDs(UIntsToUniversalIDs(signers))
 		if err != nil {
@@ -483,13 +487,19 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 			defer cleanup()
 
 			signature, err := s.runSigningProtocol(ctx, signingProtocol, msg)
+			if err == nil {
+				atomic.StoreUint32(&signedSuccessfully, 1)
+			}
 			resultChan <- struct {
 				sig []byte
 				err error
 			}{sig: signature, err: err}
 		}, syncTopic, len(signers), syncInterval)
 		if err != nil {
-			s.Logger.Warnf("Failed synchronizing on signing topic: %v", err)
+			// suppress error in case we signed successfully
+			if atomic.LoadUint32(&signedSuccessfully) == 0 {
+				s.Logger.Warnf("Failed synchronizing on pre-signing topic: %v", err)
+			}
 			cleanupSyncTopic()
 		}
 	}
@@ -501,7 +511,10 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 
 	go func() {
 		if err := sync.Synchronize(ctx, initializeSigningInstance, topicHash, s.Threshold+1, syncInterval); err != nil {
-			s.Logger.Errorf("Failed synchronizing on signing topic %s", hex.EncodeToString(topicHash))
+			// suppress error in case we signed successfully
+			if atomic.LoadUint32(&signedSuccessfully) == 0 {
+				s.Logger.Errorf("Failed synchronizing on signing topic %s", hex.EncodeToString(topicHash))
+			}
 			resultChan <- struct {
 				sig []byte
 				err error

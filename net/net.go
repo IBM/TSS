@@ -61,6 +61,15 @@ type Logger interface {
 	Warnf(format string, a ...interface{})
 }
 
+type PartyConnectionConfig struct {
+	AuthFunc func(tlsContext []byte) Handshake
+	Domain   string
+	Id       int
+	Endpoint string
+	TlsCAs   *x509.CertPool
+}
+
+
 type errReporter func(string, ...interface{})
 
 type outChan chan *outMsg
