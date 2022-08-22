@@ -14,11 +14,12 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	discovery "github.ibm.com/fabric-security-research/tss/disc"

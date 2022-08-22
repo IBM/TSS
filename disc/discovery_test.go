@@ -34,7 +34,6 @@ func TestEncodeDecode(t *testing.T) {
 	assert.Equal(t, tag, tag2)
 	assert.Equal(t, msgTypeQuery, msgType)
 
-
 	assert.Panics(t, func() {
 		decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeMembership, tag[:30], nil))
 	})
@@ -147,7 +146,6 @@ func TestSynchronize(t *testing.T) {
 		err := members[2:].synchronize(f, []byte("too few"), n, ctx)
 		assert.EqualError(t, err, "only 11 out of 13 parties synchronized")
 	})
-
 }
 
 type members []*Member
@@ -161,7 +159,7 @@ func (ms members) synchronize(f func([]uint16), topicToSynchronizeOn []byte, exp
 	for _, m := range ms {
 		go func(m *Member) {
 			defer wg.Done()
-			err := m.Synchronize(ctx, f, topicToSynchronizeOn, expectedPeerCount, time.Millisecond * 100)
+			err := m.Synchronize(ctx, f, topicToSynchronizeOn, expectedPeerCount, time.Millisecond*100)
 			if err != nil {
 				atomicErr.Store(err)
 			}

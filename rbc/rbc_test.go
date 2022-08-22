@@ -26,8 +26,8 @@ func TestBroadcast(t *testing.T) {
 	receivers[2].Receive(&mockMsg{content: "baz"}, 0)
 
 	assert.Equal(t, map[call]struct{}{
-		call{who: 1, msg: "baz", from: 0}: {},
-		call{who: 2, msg: "baz", from: 0}: {},
+		{who: 1, msg: "baz", from: 0}: {},
+		{who: 2, msg: "baz", from: 0}: {},
 	}, callSet)
 }
 
@@ -66,8 +66,8 @@ func TestPointToPointMessage(t *testing.T) {
 	receivers[1].Receive(directMsg("bar"), 2)
 
 	assert.Equal(t, map[call]struct{}{
-		call{who: 1, msg: "foo", from: 0}: {},
-		call{who: 1, msg: "bar", from: 2}: {},
+		{who: 1, msg: "foo", from: 0}: {},
+		{who: 1, msg: "bar", from: 2}: {},
 	}, callSet)
 }
 

@@ -69,7 +69,6 @@ type PartyConnectionConfig struct {
 	TlsCAs   *x509.CertPool
 }
 
-
 type errReporter func(string, ...interface{})
 
 type outChan chan *outMsg

@@ -49,12 +49,12 @@ func makePRF(key []byte) uint16PRF {
 }
 
 type topicPeerView struct {
-	minimumMessageCount          uint32
-	receivedMsgCount uint32
-	receivedMsg       chan struct{}
-	memberToView      *sync.Map // (id uint16) --> (ids []uint16)
-	responsesReceived *sync.Map // uint16 --> struct{}
-	responses         chan []uint16
+	minimumMessageCount uint32
+	receivedMsgCount    uint32
+	receivedMsg         chan struct{}
+	memberToView        *sync.Map // (id uint16) --> (ids []uint16)
+	responsesReceived   *sync.Map // uint16 --> struct{}
+	responses           chan []uint16
 }
 
 type Membership []uint16
@@ -64,8 +64,10 @@ type topicAndID struct {
 	id    uint16
 }
 
-type topic string
-type tag string
+type (
+	topic string
+	tag   string
+)
 
 type Member struct {
 	// State
@@ -91,7 +93,7 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 
 	m.Logger.Debugf("Synchronizing on topic %s, expecting %d members including ourselves", topicHex[:8], expectedMemberCount)
 
-	tpv, err := m.registerInterestInTopic(topic, expectedMemberCount - 1)
+	tpv, err := m.registerInterestInTopic(topic, expectedMemberCount-1)
 	if err != nil {
 		return err
 	}
@@ -147,7 +149,6 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 		case <-ctx.Done():
 			return fmt.Errorf("haven't received %d out of %d acknowledgements", acknowledgementsLeft, expectedMemberCount-1)
 		}
-
 	}
 
 	return nil
@@ -218,10 +219,10 @@ func (m *Member) myMemberViewSorted(topic topic) intSlice {
 func (m *Member) registerInterestInTopic(topic topic, minimumMessageCount int) (*topicPeerView, error) {
 	tpv := &topicPeerView{
 		minimumMessageCount: uint32(minimumMessageCount),
-		receivedMsg:       make(chan struct{}, 1),
-		memberToView:      &sync.Map{},
-		responses:         make(chan []uint16, len(m.Membership)-1),
-		responsesReceived: &sync.Map{},
+		receivedMsg:         make(chan struct{}, 1),
+		memberToView:        &sync.Map{},
+		responses:           make(chan []uint16, len(m.Membership)-1),
+		responsesReceived:   &sync.Map{},
 	}
 	_, loaded := m.topicsToMemberViews.LoadOrStore(topic, tpv)
 

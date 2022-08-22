@@ -44,7 +44,7 @@ func TestThresholdNaive(t *testing.T) {
 
 	var members []uint16
 	var schemes []*Scheme
-	var msgsQueues []chan*IncMessage
+	var msgsQueues []chan *IncMessage
 
 	stop := make(chan struct{})
 	defer close(stop)
@@ -94,16 +94,15 @@ func TestThresholdNaive(t *testing.T) {
 
 		schemes = append(schemes, s)
 
-
 		msgQueue := make(chan *IncMessage, 100)
 		msgsQueues = append(msgsQueues, msgQueue)
 
 		go func() {
 			for {
 				select {
-				case <- stop:
+				case <-stop:
 					return
-				case msg := <- msgQueue:
+				case msg := <-msgQueue:
 					s.HandleMessage(msg)
 				}
 			}
@@ -125,7 +124,7 @@ func TestThresholdNaive(t *testing.T) {
 				if int(dst) == id {
 					continue
 				}
-				msgsQueues[int(dst) - 1] <- &IncMessage{
+				msgsQueues[int(dst)-1] <- &IncMessage{
 					Source:  uint16(id),
 					Data:    msg,
 					Topic:   topic,
@@ -134,7 +133,6 @@ func TestThresholdNaive(t *testing.T) {
 			}
 		}
 	}
-
 
 	var wg sync.WaitGroup
 	wg.Add(n)
@@ -180,7 +178,6 @@ func TestThresholdNaive(t *testing.T) {
 	}
 
 	wg.Wait()
-
 }
 
 type receiver struct {
@@ -193,13 +190,13 @@ func (r *receiver) Receive(m RBCMessage, from uint16) {
 
 func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 	g1, g2, g3, g4 := &naiveInsecureEphemeralGen{
-		parties:   []uint16{1, 2, 3, 4},
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralGen{
-		parties:   []uint16{1, 2, 3, 4},
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralGen{
-		parties:   []uint16{1, 2, 3, 4},
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralGen{
-		parties:   []uint16{1, 2, 3, 4},
+		parties: []uint16{1, 2, 3, 4},
 	}
 
 	broadcastForParty := func(id uint16) func([]byte, bool, uint16) {
@@ -243,17 +240,17 @@ func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 	// ---------------------- sign ------------------------------
 
 	s1, s2, s3, s4 := &naiveInsecureEphemeralSigner{
-		id:        1,
-		parties:   []uint16{1, 2, 3, 4},
+		id:      1,
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralSigner{
-		id:        2,
-		parties:   []uint16{1, 2, 3, 4},
+		id:      2,
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralSigner{
-		id:        3,
-		parties:   []uint16{1, 2, 3, 4},
+		id:      3,
+		parties: []uint16{1, 2, 3, 4},
 	}, &naiveInsecureEphemeralSigner{
-		id:        4,
-		parties:   []uint16{1, 2, 3, 4},
+		id:      4,
+		parties: []uint16{1, 2, 3, 4},
 	}
 
 	broadcastOrSend := func(id uint16) func([]byte, bool, uint16) {
@@ -308,7 +305,6 @@ func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 			assert.NoError(t, err)
 
 			assert.True(t, ecdsa.VerifyASN1(pk, digest([]byte(msgToSign)), sig))
-
 		}(party, i)
 	}
 
@@ -316,9 +312,9 @@ func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 }
 
 type naiveInsecureEphemeralGen struct {
-	msgs      chan []byte
-	parties   []uint16
-	sendMsg   func(msg []byte, isBroadcast bool, to uint16)
+	msgs    chan []byte
+	parties []uint16
+	sendMsg func(msg []byte, isBroadcast bool, to uint16)
 }
 
 func (n *naiveInsecureEphemeralGen) ClassifyMsg(_ []byte) (uint8, bool, error) {
@@ -333,11 +329,10 @@ func (n *naiveInsecureEphemeralGen) Init(parties []uint16, _ int, sendMsg func(m
 
 func (n *naiveInsecureEphemeralGen) OnMsg(msgBytes []byte, _ uint16, _ bool) {
 	select {
-		case n.msgs <- msgBytes:
+	case n.msgs <- msgBytes:
 	default:
 		panic("nil channel")
 	}
-
 }
 
 type SaveData struct {
@@ -395,13 +390,13 @@ func (n *naiveInsecureEphemeralGen) KeyGen(ctx context.Context) ([]byte, error) 
 }
 
 type naiveInsecureEphemeralSigner struct {
-	id        uint16
-	share     []byte
-	tpk       []byte
-	parties   []uint16
-	msgs      chan []byte
-	sendMsg   func(msg []byte, isBroadcast bool, to uint16)
-	signFunc  func(ctx context.Context, msg []byte) ([]byte, error)
+	id       uint16
+	share    []byte
+	tpk      []byte
+	parties  []uint16
+	msgs     chan []byte
+	sendMsg  func(msg []byte, isBroadcast bool, to uint16)
+	signFunc func(ctx context.Context, msg []byte) ([]byte, error)
 }
 
 func (n *naiveInsecureEphemeralSigner) ClassifyMsg(msgBytes []byte) (uint8, bool, error) {

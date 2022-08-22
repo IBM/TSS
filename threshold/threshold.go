@@ -102,7 +102,6 @@ func (s *Scheme) handleMPC(msg *IncMessage) {
 	} else {
 		s.handleRBC(msg, rbcEncoding, classifier, handleRBC)
 	}
-
 }
 
 func (s *Scheme) handleRBC(msg *IncMessage, rbcEncoding rbcEncoding, classifier func([]byte) (uint8, bool, error), handleRBC func(m RBCMessage, from uint16)) {
@@ -190,8 +189,6 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 		sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
 		dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
 	}, totalParties)
-
-
 
 	cleanup := s.initializeHandlers(dkgTopicHash, sync.HandleMessage, rbc.Receive, dkgProtocolInstance.ClassifyMsg)
 	defer cleanup()
@@ -322,9 +319,9 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 
 		select {
 		case <-membershipConsensus:
-			case <- ctx.Done():
-				resultChan <- mpcResult{err: fmt.Errorf("could not reach consensus on membership")}
-				return
+		case <-ctx.Done():
+			resultChan <- mpcResult{err: fmt.Errorf("could not reach consensus on membership")}
+			return
 		}
 
 		result, err := dkgProtocolInstance.KeyGen(ctx)
@@ -360,7 +357,6 @@ func (s *Scheme) initializeHandlers(
 	syncHandler func(uint16, []byte),
 	rbcHandler func(m RBCMessage, from uint16),
 	classifierInstance func([]byte) (uint8, bool, error)) func() {
-
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -660,7 +656,6 @@ func (s *Scheme) setup() {
 			Synchronizer: sync,
 		}
 	}
-
 }
 
 type threadSafeSync struct {
@@ -672,13 +667,12 @@ func (s *threadSafeSync) HandleMessage(from uint16, msg []byte) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-
 	s.Synchronizer.HandleMessage(from, msg)
 }
 
 type threadSafeRBC struct {
 	lock sync.Mutex
-	h func(m RBCMessage, from uint16)
+	h    func(m RBCMessage, from uint16)
 }
 
 func (r *threadSafeRBC) Receive(m RBCMessage, from uint16) {
@@ -687,7 +681,6 @@ func (r *threadSafeRBC) Receive(m RBCMessage, from uint16) {
 
 	r.h(m, from)
 }
-
 
 func hash(in []byte) []byte {
 	h := sha256.New()
