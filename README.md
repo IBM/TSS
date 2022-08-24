@@ -50,7 +50,7 @@ By initializing the `threshold.Scheme` instance explicitly, it is possible to pa
 It is the responsibility of the consumer to ensure that messages that arrive to the party
 are dispatched by the `threshold.Scheme` instance by calling `HandleMessage(msg *IncMessage)`.
 The `IncMessage` struct appears below, and it is also the responsibility of the consumer to provide a secure, secret, and authenticated communication layer. 
-
+The `net` package provides an implementation that fits the requirements, but it is not mandatory to use it.
 ```
 type IncMessage struct {
 	Data    []byte
@@ -58,7 +58,6 @@ type IncMessage struct {
 	MsgType uint8
 	Topic   []byte
 }
-
 ```
 
 #### What are universal identifiers and party identifiers? 
