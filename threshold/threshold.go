@@ -182,18 +182,18 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 
 	dkgProtocolInstance := s.KeyGenFactory(uint16(s.SelfID))
 
-	rbc := s.RBF(func(digest string, sender uint16, msgRound uint8) {
-		s.Logger.Debugf("Broadcasting ack with digest %s for round %d about %d", hex.EncodeToString([]byte(digest)[:8]), msgRound, sender)
-		payload := newRBCEncoding(digest, sender, msgRound)
-		s.Send(uint8(MsgTypeMPC), dkgTopicHash, payload, broadcastParties...)
-	}, func(m interface{}, from uint16) {
-		msg := m.(*rbcMsg)
-		s.Logger.Debugf("Got round %d message from %d", msg.round, from)
-		sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
-		dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
-	}, totalParties)
+	/*	rbc := s.RBF(func(digest string, sender uint16, msgRound uint8) {
+			s.Logger.Debugf("Broadcasting ack with digest %s for round %d about %d", hex.EncodeToString([]byte(digest)[:8]), msgRound, sender)
+			payload := newRBCEncoding(digest, sender, msgRound)
+			s.Send(uint8(MsgTypeMPC), dkgTopicHash, payload, broadcastParties...)
+		}, func(m interface{}, from uint16) {
+			msg := m.(*rbcMsg)
+			s.Logger.Debugf("Got round %d message from %d", msg.round, from)
+			sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
+			dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
+		}, totalParties)*/
 
-	cleanup := s.initializeHandlers(dkgTopicHash, sync.HandleMessage, rbc.Receive, dkgProtocolInstance.ClassifyMsg)
+	cleanup := s.initializeHandlers(dkgTopicHash, sync.HandleMessage, dkgProtocolInstance.ClassifyMsg)
 	defer cleanup()
 
 	data, parties, err := s.runDKG(ctx, membership, dkgProtocolInstance, sync, dkgTopicHash, totalParties, threshold)
@@ -277,7 +277,8 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 	defer cancel()
 
 	callback := func(members []uint16) {
-		parties, err := membership.partyIDsByUniversalIDs(UIntsToUniversalIDs(members))
+		universalIds := UIntsToUniversalIDs(members)
+		parties, err := membership.partyIDsByUniversalIDs(universalIds)
 		if err != nil {
 			resultChan <- struct {
 				data    []byte
@@ -286,6 +287,35 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 			}{err: err}
 			return
 		}
+
+		broadcastParties := excludeUniversal(membership.universalIdentifiers, s.SelfID)
+
+		rbc := s.RBF(func(digest string, sender uint16, msgRound uint8) {
+			s.Logger.Debugf("Broadcasting ack with digest %s for round %d about %d", hex.EncodeToString([]byte(digest)[:8]), msgRound, sender)
+			payload := newRBCEncoding(digest, sender, msgRound)
+			s.Send(uint8(MsgTypeMPC), dkgTopicHash, payload, broadcastParties...)
+		}, func(m interface{}, from uint16) {
+			msg := m.(*rbcMsg)
+			s.Logger.Debugf("Got round %d message from %d", msg.round, from)
+			sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
+			dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
+		}, n)
+
+		rbc = &rbcFilter{
+			h:           rbc.Receive,
+			warn:        s.Logger.Warnf,
+			allowedList: universalIDsToUintMap(universalIds),
+		}
+
+		s.lock.Lock()
+		_, rbcExisted := s.rbcInProgress[string(dkgTopicHash)]
+		s.rbcInProgress[string(dkgTopicHash)] = rbc.Receive
+		s.lock.Unlock()
+
+		if rbcExisted {
+			panic("Programming error: we shouldn't have gotten to a situation with two concurrent signing with the same topic")
+		}
+
 		s.Logger.Debugf("Running keygen with parties %v", members)
 
 		if err := s.initializeDKG(dkgProtocolInstance, t, UIntsToUniversalIDs(members), membership); err != nil {
@@ -297,7 +327,6 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 		// We use a synchronizer to synchronize on the hash of the parties, to ensure that all parties that participate
 		// in DKG are in agreement on the membership of the DKG.
 
-		broadcastParties := excludeUniversal(UIntsToUniversalIDs(members), s.SelfID)
 		membersSyncTopicHash := membershipSyncTopicName(members)
 
 		sync := s.SyncFactory(members, func(msg []byte) {
@@ -358,21 +387,17 @@ func membershipSyncTopicName(members []uint16) []byte {
 func (s *Scheme) initializeHandlers(
 	dkgTopicHash []byte,
 	syncHandler func(uint16, []byte),
-	rbcHandler func(m RBCMessage, from uint16),
 	classifierInstance func([]byte) (uint8, bool, error)) func() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.syncsInProgress[string(dkgTopicHash)] = syncHandler
 
-	_, rbcExisted := s.rbcInProgress[string(dkgTopicHash)]
-	s.rbcInProgress[string(dkgTopicHash)] = rbcHandler
-
 	_, classifierExisted := s.messageClassifiers[string(dkgTopicHash)]
 	s.messageClassifiers[string(dkgTopicHash)] = classifierInstance
 
 	defer func() {
-		if rbcExisted || classifierExisted {
+		if classifierExisted {
 			panic("Programming error: we shouldn't have gotten to a situation with two concurrent distributed key generation takes place")
 		}
 	}()
@@ -578,6 +603,12 @@ func (s *Scheme) prepareSigning(membership *membership, parties []PartyID, topic
 		signingProtocol.OnMsg(msg.payload, from, msg.broadcast)
 	}, len(signers))
 
+	rbc = &rbcFilter{
+		allowedList: universalIDsToUintMap(signers),
+		h:           rbc.Receive,
+		warn:        s.Logger.Warnf,
+	}
+
 	s.lock.Lock()
 
 	_, rbcExisted := s.rbcInProgress[string(topicHash)]
@@ -722,6 +753,21 @@ func (s *threadSafeSync) HandleMessage(from uint16, msg []byte) {
 	s.Synchronizer.HandleMessage(from, msg)
 }
 
+type rbcFilter struct {
+	h           func(m RBCMessage, from uint16)
+	allowedList map[uint16]struct{}
+	warn        func(format string, a ...interface{})
+}
+
+func (f *rbcFilter) Receive(m RBCMessage, from uint16) {
+	_, exists := f.allowedList[from]
+	if !exists {
+		f.warn("Received a message from %d but we expect only to receive messages from: %v", from, f.allowedList)
+		return
+	}
+	f.h(m, from)
+}
+
 type threadSafeRBC struct {
 	lock sync.Mutex
 	h    func(m RBCMessage, from uint16)
@@ -807,6 +853,14 @@ func universalIDsToUInts(in []UniversalID) []uint16 {
 	res := make([]uint16, len(in))
 	for i, n := range in {
 		res[i] = uint16(n)
+	}
+	return res
+}
+
+func universalIDsToUintMap(in []UniversalID) map[uint16]struct{} {
+	res := make(map[uint16]struct{})
+	for _, n := range in {
+		res[uint16(n)] = struct{}{}
 	}
 	return res
 }
