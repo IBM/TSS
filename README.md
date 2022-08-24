@@ -128,5 +128,6 @@ Then, two operations are available:
 
 - `ThresholdPK() ([]byte, error)`: Returns the serialized threshold public key, encoded by the `mpc` dependency injected.
 
+
 - `Sign(c context.Context, msg []byte, topic string) ([]byte, error)`: Signs `msg` in the context of given `topic`. Returns the signature encoded by the `mpc` dependency injected. 
 To avoid denial of service by malicious parties that haven't received `msg`, `topic` must be unpredictable. 
