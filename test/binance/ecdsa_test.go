@@ -21,10 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	discovery "github.ibm.com/fabric-security-research/tss/disc"
 	mpc "github.ibm.com/fabric-security-research/tss/mpc/binance"
 	comm "github.ibm.com/fabric-security-research/tss/net"
-	"github.ibm.com/fabric-security-research/tss/rbc"
 	"github.ibm.com/fabric-security-research/tss/testutil/tlsgen"
 	. "github.ibm.com/fabric-security-research/tss/threshold"
 	. "github.ibm.com/fabric-security-research/tss/types"
@@ -221,43 +219,7 @@ func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertP
 		return mpc.NewParty(id, loggers[id-1])
 	}
 
-	s := &Scheme{
-		Logger:        loggers[id-1],
-		KeyGenFactory: kgf,
-		SignerFactory: sf,
-		Send: func(msgType uint8, topic []byte, msg []byte, to ...UniversalID) {
-			destinations := make([]uint16, len(to))
-			for i, dst := range to {
-				destinations[i] = uint16(dst)
-			}
-			remoteParties.Send(msgType, topic, msg, destinations...)
-		},
-		Threshold: len(commParties) - 1,
-		SelfID:    UniversalID(id),
-		RBF: func(bcast BroadcastFunc, fwd ForwardFunc, n int) ReliableBroadcast {
-			r := &rbc.Receiver{
-				SelfID: uint16(id),
-				Logger: loggers[id-1],
-				BroadcastAck: func(digest string, sender uint16, msgRound uint8) {
-					bcast(digest, sender, msgRound)
-				},
-				ForwardToBackend: func(msg interface{}, from uint16) {
-					fwd(msg, from)
-				},
-				N: n,
-			}
-			return &receiver{Receiver: r}
-		},
-		SyncFactory: func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer {
-			return &discovery.Member{
-				Membership: members,
-				Logger:     loggers[id-1],
-				ID:         uint16(id),
-				Broadcast:  broadcast,
-				Send:       send,
-			}
-		},
-	}
+	s := DefaultScheme(uint16(id), loggers[id-1], kgf, sf, len(commParties)-1, remoteParties.Send)
 
 	go func(in <-chan comm.InMsg) {
 		for msg := range in {
@@ -278,15 +240,15 @@ func logger(id int, testName string) *commLogger {
 	logConfig := zap.NewDevelopmentConfig()
 	baseLogger, _ := logConfig.Build()
 	logger := baseLogger.With(zap.String("t", testName)).With(zap.String("id", fmt.Sprintf("%d", id)))
-	return &commLogger{Logger: logger.Sugar(), conf: &logConfig}
+	return &commLogger{Logger: &loggerWithDebug{SugaredLogger: logger.Sugar()}, conf: &logConfig}
 }
 
-type receiver struct {
-	*rbc.Receiver
+type loggerWithDebug struct {
+	*zap.SugaredLogger
 }
 
-func (r *receiver) Receive(m RBCMessage, from uint16) {
-	r.Receiver.Receive(m, from)
+func (lwd *loggerWithDebug) DebugEnabled() bool {
+	return false
 }
 
 type commLogger struct {

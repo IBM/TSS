@@ -23,6 +23,7 @@ const (
 
 // Logger logs messages in a synchronized fashion to the same destination (usually to a file)
 type Logger interface {
+	DebugEnabled() bool
 	Debugf(format string, a ...interface{})
 	Infof(format string, a ...interface{})
 	Warnf(format string, a ...interface{})

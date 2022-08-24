@@ -18,6 +18,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	discovery "github.ibm.com/fabric-security-research/tss/disc"
+	"github.ibm.com/fabric-security-research/tss/rbc"
+
 	. "github.ibm.com/fabric-security-research/tss/types"
 )
 
@@ -656,6 +659,54 @@ func (s *Scheme) setup() {
 			Synchronizer: sync,
 		}
 	}
+}
+
+func DefaultScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16)) *Scheme {
+	return &Scheme{
+		Logger:        l,
+		KeyGenFactory: kgf,
+		SignerFactory: sf,
+		Send: func(msgType uint8, topic []byte, msg []byte, to ...UniversalID) {
+			destinations := make([]uint16, len(to))
+			for i, dst := range to {
+				destinations[i] = uint16(dst)
+			}
+			send(msgType, topic, msg, destinations...)
+		},
+		Threshold: threshold,
+		SelfID:    UniversalID(id),
+		RBF: func(bcast BroadcastFunc, fwd ForwardFunc, n int) ReliableBroadcast {
+			r := &rbc.Receiver{
+				SelfID: id,
+				Logger: l,
+				BroadcastAck: func(digest string, sender uint16, msgRound uint8) {
+					bcast(digest, sender, msgRound)
+				},
+				ForwardToBackend: func(msg interface{}, from uint16) {
+					fwd(msg, from)
+				},
+				N: n,
+			}
+			return &receiver{Receiver: r}
+		},
+		SyncFactory: func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer {
+			return &discovery.Member{
+				Membership: members,
+				Logger:     l,
+				ID:         id,
+				Broadcast:  broadcast,
+				Send:       send,
+			}
+		},
+	}
+}
+
+type receiver struct {
+	*rbc.Receiver
+}
+
+func (r *receiver) Receive(m RBCMessage, from uint16) {
+	r.Receiver.Receive(m, from)
 }
 
 type threadSafeSync struct {

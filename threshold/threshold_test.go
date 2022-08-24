@@ -180,14 +180,6 @@ func TestThresholdNaive(t *testing.T) {
 	wg.Wait()
 }
 
-type receiver struct {
-	*rbc.Receiver
-}
-
-func (r *receiver) Receive(m RBCMessage, from uint16) {
-	r.Receiver.Receive(m, from)
-}
-
 func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 	g1, g2, g3, g4 := &naiveInsecureEphemeralGen{
 		parties: []uint16{1, 2, 3, 4},
@@ -566,5 +558,13 @@ func logger(id int, testName string) *muteableLogger {
 	logConfig := zap.NewDevelopmentConfig()
 	baseLogger, _ := logConfig.Build()
 	logger := baseLogger.With(zap.String("t", testName)).With(zap.String("id", fmt.Sprintf("%d", id)))
-	return &muteableLogger{Logger: logger.Sugar(), conf: &logConfig}
+	return &muteableLogger{Logger: &loggerWithDebug{SugaredLogger: logger.Sugar()}, conf: &logConfig}
+}
+
+type loggerWithDebug struct {
+	*zap.SugaredLogger
+}
+
+func (lwd *loggerWithDebug) DebugEnabled() bool {
+	return false
 }
