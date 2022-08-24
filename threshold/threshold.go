@@ -180,17 +180,6 @@ func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byt
 
 	dkgProtocolInstance := s.KeyGenFactory(uint16(s.SelfID))
 
-	/*	rbc := s.RBF(func(digest string, sender uint16, msgRound uint8) {
-			s.Logger.Debugf("Broadcasting ack with digest %s for round %d about %d", hex.EncodeToString([]byte(digest)[:8]), msgRound, sender)
-			payload := newRBCEncoding(digest, sender, msgRound)
-			s.Send(uint8(MsgTypeMPC), dkgTopicHash, payload, broadcastParties...)
-		}, func(m interface{}, from uint16) {
-			msg := m.(*rbcMsg)
-			s.Logger.Debugf("Got round %d message from %d", msg.round, from)
-			sourceParty := uint16(membership.partyIDByUniversalID(UniversalID(from)))
-			dkgProtocolInstance.OnMsg(msg.payload, sourceParty, msg.broadcast)
-		}, totalParties)*/
-
 	cleanup := s.initializeHandlers(dkgTopicHash, sync.HandleMessage, dkgProtocolInstance.ClassifyMsg)
 	defer cleanup()
 
