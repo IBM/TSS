@@ -147,9 +147,7 @@ func (s *Scheme) handleAck(msg *IncMessage, round uint8, sender uint16, digest [
 
 // KeyGen collaborates with parties and generates a threshold signature public key.
 // The private key generated is unknown to any threshold or less parties.
-// On success, returns:
-// (1) This party's secret share and other data to be securely saved for later signing.
-// (2) The identifiers of parties that participated in the DKG protocol.
+// On success, returns data to be securely saved for later signing, namely the secret share of the party.
 // In case the given context expires, or any other problem occurs, returns an error.
 // It is up to the caller to ensure that exactly the given amount of total parties invoke KeyGen concurrently.
 func (s *Scheme) KeyGen(ctx context.Context, totalParties, threshold int) ([]byte, error) {
