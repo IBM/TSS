@@ -74,13 +74,14 @@ func TestThresholdBinanceECDSA(t *testing.T) {
 		membership[UniversalID(id)] = PartyID(id)
 	}
 
+	membershipFunc := func() map[UniversalID]PartyID {
+		return membership
+	}
+
 	var parties []*Scheme
 
 	for id := 1; id <= n; id++ {
-		stop, s := createParty(id, signers[id-1], n, certPool, listeners, loggers, commParties, members)
-		s.Membership = func() map[UniversalID]PartyID {
-			return membership
-		}
+		stop, s := createParty(id, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
 		parties = append(parties, s)
 		stopFuncs = append(stopFuncs, stop)
 	}
@@ -167,7 +168,7 @@ func thresholdSign(t *testing.T, i int, parties []*Scheme, k int) {
 	t.Log("Signing elapsed", elapsed)
 }
 
-func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertPool, listeners []net.Listener, loggers []*commLogger, commParties []*comm.Party, members []uint16) (func(), *Scheme) {
+func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertPool, listeners []net.Listener, loggers []*commLogger, commParties []*comm.Party, membershipFunc func() map[UniversalID]PartyID) (func(), *Scheme) {
 	remoteParties := make(comm.SocketRemoteParties)
 
 	auth := func(tlsContext []byte) comm.Handshake {
@@ -219,7 +220,7 @@ func createParty(id int, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertP
 		return mpc.NewParty(id, loggers[id-1])
 	}
 
-	s := DefaultScheme(uint16(id), loggers[id-1], kgf, sf, len(commParties)-1, remoteParties.Send)
+	s := DefaultScheme(uint16(id), loggers[id-1], kgf, sf, len(commParties)-1, remoteParties.Send, membershipFunc)
 
 	go func(in <-chan comm.InMsg) {
 		for msg := range in {

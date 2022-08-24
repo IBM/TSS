@@ -661,8 +661,9 @@ func (s *Scheme) setup() {
 	}
 }
 
-func DefaultScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16)) *Scheme {
+func DefaultScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16), membership func() map[UniversalID]PartyID) *Scheme {
 	return &Scheme{
+		Membership:    membership,
 		Logger:        l,
 		KeyGenFactory: kgf,
 		SignerFactory: sf,
