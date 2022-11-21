@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -49,12 +48,10 @@ func makePRF(key []byte) uint16PRF {
 }
 
 type topicPeerView struct {
-	minimumMessageCount uint32
-	receivedMsgCount    uint32
-	receivedMsg         chan struct{}
-	memberToView        *sync.Map // (id uint16) --> (ids []uint16)
-	responsesReceived   *sync.Map // uint16 --> struct{}
-	responses           chan []uint16
+	receivedMsg       chan struct{}
+	memberToView      *sync.Map // (id uint16) --> (ids []uint16)
+	responsesReceived *sync.Map // uint16 --> struct{}
+	responses         chan []uint16
 }
 
 type Membership []uint16
@@ -93,7 +90,7 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 
 	m.Logger.Debugf("Synchronizing on topic %s, expecting %d members including ourselves", topicHex[:8], expectedMemberCount)
 
-	tpv, err := m.registerInterestInTopic(topic, expectedMemberCount-1)
+	tpv, err := m.registerInterestInTopic(topic)
 	if err != nil {
 		return err
 	}
@@ -109,8 +106,11 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 
 	var members []uint16
 
-	for len(members) < expectedMemberCount {
+	for {
 		members = m.intersectedView(topic, topicHex[:8], tpv)
+		if len(members) >= expectedMemberCount {
+			break
+		}
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("only %d out of %d parties synchronized", len(members), expectedMemberCount)
@@ -128,9 +128,8 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 	}
 
 	sortIntSlice(members)
-	f(members)
 
-	m.Logger.Debugf("Synchronized on topic %s with members %v", topicHex[:8], members)
+	m.Logger.Debugf("Learned about %v for topic %s", members, topicHex[:8])
 
 	msgToBroadcast := encodeTagAndMembershipList(msgTypeQuery, myTag, members)
 	m.Broadcast(msgToBroadcast)
@@ -150,6 +149,10 @@ func (m *Member) Synchronize(ctx context.Context, f func([]uint16), topicToSynch
 			return fmt.Errorf("haven't received %d out of %d acknowledgements", acknowledgementsLeft, expectedMemberCount-1)
 		}
 	}
+
+	m.Logger.Debugf("Synchronized on topic %s with members %v", topicHex[:8], members)
+
+	f(members)
 
 	return nil
 }
@@ -216,13 +219,12 @@ func (m *Member) myMemberViewSorted(topic topic) intSlice {
 	return res
 }
 
-func (m *Member) registerInterestInTopic(topic topic, minimumMessageCount int) (*topicPeerView, error) {
+func (m *Member) registerInterestInTopic(topic topic) (*topicPeerView, error) {
 	tpv := &topicPeerView{
-		minimumMessageCount: uint32(minimumMessageCount),
-		receivedMsg:         make(chan struct{}, 1),
-		memberToView:        &sync.Map{},
-		responses:           make(chan []uint16, len(m.Membership)-1),
-		responsesReceived:   &sync.Map{},
+		receivedMsg:       make(chan struct{}, 1),
+		memberToView:      &sync.Map{},
+		responses:         make(chan []uint16, len(m.Membership)-1),
+		responsesReceived: &sync.Map{},
 	}
 	_, loaded := m.topicsToMemberViews.LoadOrStore(topic, tpv)
 
@@ -282,6 +284,7 @@ func (m *Member) HandleMessage(from uint16, msg []byte) {
 	case msgTypeMembership:
 		m.handleMembershipMessage(from, tpv, peers)
 	case msgTypeQuery:
+		m.handleMembershipMessage(from, tpv, peers)
 		m.respondToQuery(from, topicAndID)
 	case msgTypeResponse:
 		m.handleResponse(from, peers, tpv)
@@ -301,10 +304,6 @@ func (m *Member) handleResponse(from uint16, peers []uint16, tpv interface{}) {
 func (m *Member) handleMembershipMessage(from uint16, tpv interface{}, peers []uint16) {
 	topicPeerView := tpv.(*topicPeerView)
 	topicPeerView.memberToView.Store(from, peers)
-
-	if atomic.AddUint32(&topicPeerView.receivedMsgCount, 1) < topicPeerView.minimumMessageCount {
-		return
-	}
 
 	select {
 	case topicPeerView.receivedMsg <- struct{}{}:
@@ -326,13 +325,6 @@ func encodeTagAndMembershipList(msgType msgType, tag tag, peers []uint16) []byte
 
 	if msgType < msgTypeMembership || msgType > msgTypeResponse {
 		panic(fmt.Sprintf("invalid msgType: %d", msgType))
-	}
-
-	if msgType == msgTypeQuery {
-		buff := make([]byte, 1, 33)
-		buff[0] = byte(msgType)
-		buff = append(buff, tag...)
-		return buff
 	}
 
 	size := 32 + len(peers)*2 + 1
@@ -357,10 +349,6 @@ func decodeTagAndMembershipList(msg []byte) (msgType, tag, []uint16, error) {
 	msgType := msgType(msg[0])
 	if msgType < msgTypeMembership || msgType > msgTypeResponse {
 		return 0, "", nil, fmt.Errorf("invalid message type: %d", msgType)
-	}
-
-	if msgType == msgTypeQuery {
-		return msgType, tag(msg[1:33]), nil, nil
 	}
 
 	var peers []uint16
