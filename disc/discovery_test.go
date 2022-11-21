@@ -28,9 +28,9 @@ func TestEncodeDecode(t *testing.T) {
 	assert.Equal(t, membership, membership2)
 	assert.Equal(t, msgTypeMembership, msgType)
 
-	msgType, tag2, membership2, err = decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeQuery, tag, nil))
+	msgType, tag2, membership2, err = decodeTagAndMembershipList(encodeTagAndMembershipList(msgTypeQuery, tag, []uint16{1, 2, 3}))
 	assert.NoError(t, err)
-	assert.Empty(t, membership2)
+	assert.Equal(t, []uint16{1, 2, 3}, membership2)
 	assert.Equal(t, tag, tag2)
 	assert.Equal(t, msgTypeQuery, msgType)
 
