@@ -30,6 +30,11 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 )
 
+const (
+	// defaultSafePrimeGenTimeout is the default time allocated for the library to sample the Paillier public key
+	defaultSafePrimeGenTimeout = 5 * time.Minute
+)
+
 func init() {
 	tss.SetCurve(elliptic.P256())
 	tss.RegisterCurve("elliptic.p256Curve", elliptic.P256())
@@ -289,7 +294,13 @@ func (p *party) KeyGen(ctx context.Context) ([]byte, error) {
 	p.logger.Debugf("Starting DKG")
 	defer p.logger.Debugf("Finished DKG")
 
-	preParams, err := keygen.GeneratePreParams(1 * time.Minute)
+	preParamGenTimeout := defaultSafePrimeGenTimeout
+
+	deadline, deadlineExists := ctx.Deadline()
+	if deadlineExists {
+		preParamGenTimeout = deadline.Sub(time.Now())
+	}
+	preParams, err := keygen.GeneratePreParams(preParamGenTimeout)
 	if err != nil {
 		panic(err)
 	}
