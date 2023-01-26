@@ -226,7 +226,7 @@ func partyIDsFromNumbers(parties []uint16) []*tss.PartyID {
 	return tss.SortPartyIDs(partyIDs)
 }
 
-func (p *party) Sign(ctx context.Context, msg []byte) ([]byte, error) {
+func (p *party) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
 	if p.shareData == nil {
 		return nil, fmt.Errorf("must call SetShareData() before attempting to sign")
 	}
@@ -235,7 +235,7 @@ func (p *party) Sign(ctx context.Context, msg []byte) ([]byte, error) {
 
 	end := make(chan common.SignatureData, 1)
 
-	msgToSign := hashToInt(digest(msg), elliptic.P256())
+	msgToSign := hashToInt(msgHash, elliptic.P256())
 	party := signing.NewLocalParty(msgToSign, p.params, *p.shareData, p.out, end)
 
 	var endWG sync.WaitGroup
@@ -258,7 +258,7 @@ func (p *party) Sign(ctx context.Context, msg []byte) ([]byte, error) {
 		case sigOut := <-end:
 			if !bytes.Equal(sigOut.M, msgToSign.Bytes()) {
 				return nil, fmt.Errorf("message we requested to sign is %s but actual message signed is %s",
-					base64.StdEncoding.EncodeToString(msg),
+					base64.StdEncoding.EncodeToString(msgHash),
 					base64.StdEncoding.EncodeToString(sigOut.M))
 			}
 			var sig struct {

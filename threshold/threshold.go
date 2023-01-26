@@ -420,16 +420,16 @@ func (s *Scheme) ThresholdPK() ([]byte, error) {
 	return signer.ThresholdPK()
 }
 
-// Sign produces a threshold signature on `msg`, collaborating with all parties concurrently invoke Sign with the same topic.
+// Sign produces a threshold signature on `msgHash`, collaborating with all parties concurrently invoke Sign with the same topic.
 // In case the deadline of the given context expires, or any other problem occurs, returns an error.
-func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, error) {
+func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, error) {
 	s.setupOnce.Do(s.setup)
 
 	membership := computeMembership(s.Membership())
 
 	topicHash := hash([]byte(topic))
 	topicHashText := hex.EncodeToString(topicHash)
-	msgHashHex := hex.EncodeToString(hash(msg))
+	msgHashHex := hex.EncodeToString(msgHash)
 
 	s.Logger.Infof("Topic <%s> hash is %s", topic, topicHashText[:8])
 
@@ -497,7 +497,7 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 			defer cleanupSyncTopic()
 			defer cleanup()
 
-			signature, err := s.runSigningProtocol(ctx, signingProtocol, msg)
+			signature, err := s.runSigningProtocol(ctx, signingProtocol, msgHash)
 			if err == nil {
 				atomic.StoreUint32(&signedSuccessfully, 1)
 			}
@@ -542,8 +542,8 @@ func (s *Scheme) Sign(c context.Context, msg []byte, topic string) ([]byte, erro
 	}
 }
 
-func (s *Scheme) runSigningProtocol(ctx context.Context, signingProtocol Signer, msg []byte) ([]byte, error) {
-	signature, err := signingProtocol.Sign(ctx, msg)
+func (s *Scheme) runSigningProtocol(ctx context.Context, signingProtocol Signer, msgHash []byte) ([]byte, error) {
+	signature, err := signingProtocol.Sign(ctx, msgHash)
 	if err != nil {
 		s.Logger.Errorf("Failed signing: %v", err)
 		return nil, err

@@ -163,17 +163,17 @@ func TestThresholdNaive(t *testing.T) {
 		Curve: elliptic.P256(),
 	}
 
-	msgToSign := "You can avoid reality, but you cannot avoid the consequences of avoiding reality"
+	msgToSign := digest([]byte("You can avoid reality, but you cannot avoid the consequences of avoiding reality"))
 
 	wg.Add(n)
 
 	for id := 1; id <= n; id++ {
 		go func(s *Scheme) {
 			defer wg.Done()
-			signature, err := s.Sign(context.Background(), []byte(msgToSign), "topic")
+			signature, err := s.Sign(context.Background(), msgToSign, "topic")
 			assert.NoError(t, err)
 
-			assert.True(t, ecdsa.VerifyASN1(pk, digest([]byte(msgToSign)), signature))
+			assert.True(t, ecdsa.VerifyASN1(pk, msgToSign, signature))
 		}(schemes[id-1])
 	}
 
@@ -287,16 +287,16 @@ func TestNaiveInsecureEphemeralTSS(t *testing.T) {
 
 	wg.Add(4)
 
-	msgToSign := "The quick brown fox jumps over the lazy dog"
+	msgToSign := digest([]byte("The quick brown fox jumps over the lazy dog"))
 
 	for i, party := range []*naiveInsecureEphemeralSigner{s1, s2, s3, s4} {
 		go func(p *naiveInsecureEphemeralSigner, i int) {
 			defer wg.Done()
 
-			sig, err := p.Sign(ctx, []byte(msgToSign))
+			sig, err := p.Sign(ctx, msgToSign)
 			assert.NoError(t, err)
 
-			assert.True(t, ecdsa.VerifyASN1(pk, digest([]byte(msgToSign)), sig))
+			assert.True(t, ecdsa.VerifyASN1(pk, msgToSign, sig))
 		}(party, i)
 	}
 
@@ -437,11 +437,11 @@ func (n *naiveInsecureEphemeralSigner) ThresholdPK() ([]byte, error) {
 	return n.tpk, nil
 }
 
-func (n *naiveInsecureEphemeralSigner) Sign(ctx context.Context, msg []byte) ([]byte, error) {
-	return n.signFunc(ctx, msg)
+func (n *naiveInsecureEphemeralSigner) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
+	return n.signFunc(ctx, msgHash)
 }
 
-func (n *naiveInsecureEphemeralSigner) signAsAggregator(ctx context.Context, msg []byte) ([]byte, error) {
+func (n *naiveInsecureEphemeralSigner) signAsAggregator(ctx context.Context, msgHash []byte) ([]byte, error) {
 	// Prepare a share from yourself
 	n.msgs <- n.share
 
@@ -450,7 +450,7 @@ func (n *naiveInsecureEphemeralSigner) signAsAggregator(ctx context.Context, msg
 		return nil, err
 	}
 
-	sig, err := n.signLocally(msg, err, sk)
+	sig, err := n.signLocally(msgHash, err, sk)
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +463,7 @@ func (n *naiveInsecureEphemeralSigner) signAsAggregator(ctx context.Context, msg
 		Y:     y,
 	}
 
-	if !ecdsa.VerifyASN1(pk, hash(msg), sig) {
+	if !ecdsa.VerifyASN1(pk, msgHash, sig) {
 		panic("bad signature")
 	}
 
@@ -473,8 +473,8 @@ func (n *naiveInsecureEphemeralSigner) signAsAggregator(ctx context.Context, msg
 	return sig, nil
 }
 
-func (n *naiveInsecureEphemeralSigner) signLocally(msg []byte, err error, sk *ecdsa.PrivateKey) ([]byte, error) {
-	sig, err := ecdsa.SignASN1(rand.Reader, sk, digest(msg))
+func (n *naiveInsecureEphemeralSigner) signLocally(msgHash []byte, err error, sk *ecdsa.PrivateKey) ([]byte, error) {
+	sig, err := ecdsa.SignASN1(rand.Reader, sk, msgHash)
 	if err != nil {
 		return nil, err
 	}

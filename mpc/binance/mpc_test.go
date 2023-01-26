@@ -131,7 +131,7 @@ func TestTSS(t *testing.T) {
 
 	t.Logf("Signing message")
 	t1 = time.Now()
-	sigs, err := parties.sign(msgToSign)
+	sigs, err := parties.sign(digest(msgToSign))
 	assert.NoError(t, err)
 	t.Logf("Signing completed in %v", time.Since(t1))
 
