@@ -1,14 +1,12 @@
 package binance_test
 
 import (
-	"encoding/asn1"
-	"github.ibm.com/fabric-security-research/tss/threshold"
-	"math/big"
+	"crypto/ed25519"
 	"testing"
 	"time"
 
-	"github.com/binance-chain/tss-lib/tss"
-	"github.com/decred/dcrd/dcrec/edwards/v2"
+	"github.ibm.com/fabric-security-research/tss/threshold"
+
 	eddsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa"
 
 	"github.com/stretchr/testify/assert"
@@ -42,32 +40,5 @@ func eddsaKeygenAndSign(loggers []*commLogger) (func(id uint16) KeyGenerator, fu
 }
 
 func verifySignatureEdDSA(pkBytes []byte, t *testing.T, msg string, signature []byte) {
-	type PK struct {
-		X, Y *big.Int
-	}
-
-	publicKey := &PK{}
-
-	_, err := asn1.Unmarshal(pkBytes, publicKey)
-	assert.NoError(t, err)
-
-	r, s := unmarshalSignature(t, signature)
-	assert.True(t, edwards.Verify(&edwards.PublicKey{
-		X:     publicKey.X,
-		Y:     publicKey.Y,
-		Curve: tss.Edwards(),
-	}, sha256Digest([]byte(msg)), r, s))
-}
-
-func unmarshalSignature(t *testing.T, rawSig []byte) (R *big.Int, S *big.Int) {
-	type sig struct {
-		R, S *big.Int
-	}
-
-	signature := &sig{}
-
-	_, err := asn1.Unmarshal(rawSig, signature)
-	assert.NoError(t, err)
-
-	return signature.R, signature.S
+	assert.True(t, ed25519.Verify(pkBytes, sha256Digest([]byte(msg)), signature))
 }

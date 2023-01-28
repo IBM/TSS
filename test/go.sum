@@ -80,6 +80,8 @@ github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230128193
 github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230128193156-694bf0d605d2/go.mod h1:NbYYKnfbRo7dWfjgLNyGF5+xaZQ+jsw8zAIozXdt41U=
 github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230128191416-4b08d8d95ec2 h1:Xfh8XGw8PGdcK30E3MIf4yDWm67IOQ/48Voxw+lm9u8=
 github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230128191416-4b08d8d95ec2/go.mod h1:tO2IPy1LYI9wpvlCN9d3yJZpngOLKhLxQlOMe3fiMPI=
+github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230128200337-44724e317768 h1:GkHrQyz3lHK3/CIi5p9JdeNS5Tz3w5PMQyQ9oOsUPdU=
+github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230128200337-44724e317768/go.mod h1:tO2IPy1LYI9wpvlCN9d3yJZpngOLKhLxQlOMe3fiMPI=
 go.uber.org/atomic v1.7.0 h1:ADUqmZGgLDDfbSL9ZmPxKTybcoEYHgpYfELNoN+7hsw=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/goleak v1.1.11 h1:wy28qYRKZgnJTxGxvye5/wgWr1EKjmUDGYox5mGlRlI=
