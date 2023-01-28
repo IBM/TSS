@@ -9,9 +9,7 @@ package ecdsa
 import (
 	"bytes"
 	"context"
-	"crypto/elliptic"
 	"crypto/sha256"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -149,31 +147,21 @@ func (p *party) OnMsg(msgBytes []byte, from uint16, broadcast bool) {
 	p.in <- msg
 }
 
-func (p *party) TPubKey() (*edwards.PublicKey, error) {
+func (p *party) ThresholdPK() ([]byte, error) {
 	if p.shareData == nil {
 		return nil, fmt.Errorf("must call SetShareData() before attempting to sign")
 	}
 
 	pk := p.shareData.EDDSAPub
 
-	return &edwards.PublicKey{
+	edPK := &edwards.PublicKey{
 		Curve: tss.Edwards(),
 		X:     pk.X(),
 		Y:     pk.Y(),
-	}, nil
-}
-
-func (p *party) ThresholdPK() ([]byte, error) {
-	pk, err := p.TPubKey()
-	if err != nil {
-		return nil, err
 	}
 
-	type PK struct {
-		X, Y *big.Int
-	}
-
-	return asn1.Marshal(PK{X: pk.X, Y: pk.Y})
+	pkBytes := copyBytes(edPK.Serialize())
+	return pkBytes[:], nil
 }
 
 func (p *party) SetShareData(shareData []byte) error {
@@ -252,11 +240,8 @@ func (p *party) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
 			sig.R.SetBytes(sigOut.R)
 			sig.S.SetBytes(sigOut.S)
 
-			sigRaw, err := asn1.Marshal(sig)
-			if err != nil {
-				return nil, fmt.Errorf("failed marshaling ECDSA signature: %w", err)
-			}
-			return sigRaw, nil
+			s := &edwards.Signature{R: sig.R, S: sig.S}
+			return s.Serialize(), nil
 		case msg := <-p.in:
 			raw, routing, err := msg.WireBytes()
 			if err != nil {
@@ -341,24 +326,32 @@ func (p *party) sendMessages(closeChan <-chan struct{}) {
 	}
 }
 
-// hashToInt is taken as-is from the Go ECDSA standard library
-func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
-	orderBits := c.Params().N.BitLen()
-	orderBytes := (orderBits + 7) / 8
-	if len(hash) > orderBytes {
-		hash = hash[:orderBytes]
-	}
-
-	ret := new(big.Int).SetBytes(hash)
-	excess := len(hash)*8 - orderBits
-	if excess > 0 {
-		ret.Rsh(ret, uint(excess))
-	}
-	return ret
-}
-
 func digest(in []byte) []byte {
 	h := sha256.New()
 	h.Write(in)
 	return h.Sum(nil)
+}
+
+// copyBytes copies a byte slice to a 32 byte array.
+func copyBytes(aB []byte) *[32]byte {
+	if aB == nil {
+		return nil
+	}
+	s := new([32]byte)
+
+	// If we have a short byte string, expand
+	// it so that it's long enough.
+	aBLen := len(aB)
+	if aBLen < 32 {
+		diff := 32 - aBLen
+		for i := 0; i < diff; i++ {
+			aB = append([]byte{0x00}, aB...)
+		}
+	}
+
+	for i := 0; i < 32; i++ {
+		s[i] = aB[i]
+	}
+
+	return s
 }

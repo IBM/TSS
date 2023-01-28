@@ -8,15 +8,13 @@ package ecdsa
 
 import (
 	"context"
-	"encoding/asn1"
+	"crypto/ed25519"
 	"fmt"
 	"math/big"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/decred/dcrd/dcrec/edwards/v2"
 
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/stretchr/testify/assert"
@@ -144,25 +142,10 @@ func TestTSS(t *testing.T) {
 	}
 	assert.Len(t, sigSet, 1)
 
-	pk, err := parties[0].TPubKey()
+	pk, err := parties[0].ThresholdPK()
 	assert.NoError(t, err)
 
-	r, s := unmarshalSignature(t, sigs[0])
-
-	assert.True(t, edwards.Verify(pk, digest(msgToSign), r, s))
-}
-
-func unmarshalSignature(t *testing.T, rawSig []byte) (R *big.Int, S *big.Int) {
-	type sig struct {
-		R, S *big.Int
-	}
-
-	signature := &sig{}
-
-	_, err := asn1.Unmarshal(rawSig, signature)
-	assert.NoError(t, err)
-
-	return signature.R, signature.S
+	assert.True(t, ed25519.Verify(pk, digest(msgToSign), sigs[0]))
 }
 
 func senders(parties parties) []Sender {
