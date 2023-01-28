@@ -21,11 +21,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	mpc "github.ibm.com/fabric-security-research/tss/mpc/binance"
+	mpc "github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa"
 	comm "github.ibm.com/fabric-security-research/tss/net"
 	"github.ibm.com/fabric-security-research/tss/testutil/tlsgen"
-	. "github.ibm.com/fabric-security-research/tss/threshold"
-	. "github.ibm.com/fabric-security-research/tss/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
