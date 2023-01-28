@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	syncInterval = time.Millisecond * 200
+	SyncInterval = time.Millisecond * 200
 )
 
 type Scheme struct {
@@ -334,7 +334,7 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 
 		go sync.Synchronize(ctx, func([]uint16) {
 			close(membershipConsensus)
-		}, membersSyncTopicHash, n, syncInterval)
+		}, membersSyncTopicHash, n, SyncInterval)
 
 		select {
 		case <-membershipConsensus:
@@ -349,7 +349,7 @@ func (s *Scheme) runDKG(ctx context.Context, membership *membership, dkgProtocol
 	}
 
 	go func() {
-		if err := sync.Synchronize(ctx, callback, dkgTopicHash, n, syncInterval); err != nil {
+		if err := sync.Synchronize(ctx, callback, dkgTopicHash, n, SyncInterval); err != nil {
 			resultChan <- mpcResult{data: nil, err: err}
 		}
 	}()
@@ -431,6 +431,8 @@ func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, 
 	topicHashText := hex.EncodeToString(topicHash)
 	msgHashHex := hex.EncodeToString(msgHash)
 
+	start := time.Now()
+
 	s.Logger.Infof("Topic <%s> hash is %s", topic, topicHashText[:8])
 
 	resultChan := make(chan struct {
@@ -463,6 +465,10 @@ func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, 
 
 		s.Logger.Infof("Parties %v out of %v (mapped to %v) were selected to sign message hash %s with a topic of %s",
 			signers, membership.universalIdentifiers, partyIDs, msgHashHex[:8], topicHashText[:8])
+
+		s.Logger.Debugf("Synchronization on topic %s took %v", topicHashText[:8], time.Since(start))
+
+		start2 := time.Now()
 
 		signingProtocol, err := s.prepareSigning(membership, partyIDs, topicHash, UIntsToUniversalIDs(signers))
 		if err != nil {
@@ -497,6 +503,8 @@ func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, 
 			defer cleanupSyncTopic()
 			defer cleanup()
 
+			s.Logger.Debugf("Time elapsed to ensure all signers for topic %s are ready: %v", topicHashText[:8], time.Since(start2))
+
 			signature, err := s.runSigningProtocol(ctx, signingProtocol, msgHash)
 			if err == nil {
 				atomic.StoreUint32(&signedSuccessfully, 1)
@@ -505,7 +513,7 @@ func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, 
 				sig []byte
 				err error
 			}{sig: signature, err: err}
-		}, syncTopic, len(signers), syncInterval)
+		}, syncTopic, len(signers), SyncInterval)
 		if err != nil {
 			// suppress error in case we signed successfully
 			if atomic.LoadUint32(&signedSuccessfully) == 0 {
@@ -521,7 +529,7 @@ func (s *Scheme) Sign(c context.Context, msgHash []byte, topic string) ([]byte, 
 	}
 
 	go func() {
-		if err := sync.Synchronize(ctx, initializeSigningInstance, topicHash, s.Threshold+1, syncInterval); err != nil {
+		if err := sync.Synchronize(ctx, initializeSigningInstance, topicHash, s.Threshold+1, SyncInterval); err != nil {
 			// suppress error in case we signed successfully
 			if atomic.LoadUint32(&signedSuccessfully) == 0 {
 				s.Logger.Errorf("Failed synchronizing on signing topic %s", hex.EncodeToString(topicHash))
