@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/elliptic"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
@@ -169,7 +168,12 @@ func (p *party) ThresholdPK() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return x509.MarshalPKIXPublicKey(pk)
+
+	type PK struct {
+		X, Y *big.Int
+	}
+
+	return asn1.Marshal(PK{X: pk.X, Y: pk.Y})
 }
 
 func (p *party) SetShareData(shareData []byte) error {

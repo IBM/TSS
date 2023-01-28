@@ -147,16 +147,22 @@ func TestTSS(t *testing.T) {
 	pk, err := parties[0].TPubKey()
 	assert.NoError(t, err)
 
+	r, s := unmarshalSignature(t, sigs[0])
+
+	assert.True(t, edwards.Verify(pk, digest(msgToSign), r, s))
+}
+
+func unmarshalSignature(t *testing.T, rawSig []byte) (R *big.Int, S *big.Int) {
 	type sig struct {
 		R, S *big.Int
 	}
 
 	signature := &sig{}
 
-	_, err = asn1.Unmarshal(sigs[0], signature)
+	_, err := asn1.Unmarshal(rawSig, signature)
 	assert.NoError(t, err)
 
-	assert.True(t, edwards.Verify(pk, digest(msgToSign), signature.R, signature.S))
+	return signature.R, signature.S
 }
 
 func senders(parties parties) []Sender {
