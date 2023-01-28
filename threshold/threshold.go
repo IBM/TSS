@@ -24,7 +24,7 @@ import (
 	. "github.ibm.com/fabric-security-research/tss/types"
 )
 
-const (
+var (
 	SyncInterval = time.Millisecond * 200
 )
 
