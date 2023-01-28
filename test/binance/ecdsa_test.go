@@ -3,11 +3,10 @@ package binance_test
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
 	ecdsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa"
 	. "github.ibm.com/fabric-security-research/tss/types"
+	"testing"
 )
 
 func TestThresholdBinanceECDSA(t *testing.T) {

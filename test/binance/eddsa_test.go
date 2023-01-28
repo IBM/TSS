@@ -2,8 +2,10 @@ package binance_test
 
 import (
 	"encoding/asn1"
+	"github.ibm.com/fabric-security-research/tss/threshold"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/binance-chain/tss-lib/tss"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
@@ -22,6 +24,8 @@ func TestThresholdBinanceEdDSA(t *testing.T) {
 
 	verifySig = verifySignatureEdDSA
 	signatureAlgorithms = eddsaKeygenAndSign
+
+	threshold.SyncInterval = time.Millisecond * 50
 
 	testScheme(t, n, signatureAlgorithms, verifySig)
 }
