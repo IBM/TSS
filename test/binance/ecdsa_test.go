@@ -14,6 +14,8 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	. "github.ibm.com/fabric-security-research/tss/threshold"
+	. "github.ibm.com/fabric-security-research/tss/types"
 	"net"
 	"sync"
 	"testing"
@@ -146,7 +148,7 @@ func thresholdSign(t *testing.T, i int, parties []*Scheme, k int) {
 		time.Sleep(time.Millisecond * 50)
 		go func(p *Scheme) {
 			defer wg.Done()
-			signature, err := p.Sign(ctx, []byte(msg), topic)
+			signature, err := p.Sign(ctx, sha256Digest([]byte(msg)), topic)
 			require.NoError(t, err)
 			assert.NotEmpty(t, signature)
 

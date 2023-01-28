@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/stretchr/testify v1.8.0
 	github.ibm.com/fabric-security-research/tss v0.0.0-20220824153125-b1c8e0a8372a
-	github.ibm.com/fabric-security-research/tss/mpc/binance v0.0.0-20220824153125-b1c8e0a8372a
+	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230128135019-09c53989c366
 	go.uber.org/zap v1.22.0
 )
 
