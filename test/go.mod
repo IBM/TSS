@@ -1,19 +1,21 @@
 module github.ibm.com/fabric-security-research/tss/test
 
-go 1.17
+go 1.18
 
 require (
-	github.com/binance-chain/tss-lib v1.3.3
-	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
 	github.com/stretchr/testify v1.8.0
-	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230128193156-694bf0d605d2
+	github.ibm.com/fabric-security-research/tss v0.0.0-00010101000000-000000000000
+	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230129212546-295f87d6925f
+	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230129212546-295f87d6925f
 	go.uber.org/zap v1.24.0
 )
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
+	github.com/binance-chain/tss-lib v1.3.3 // indirect
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -26,8 +28,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc // indirect
-	github.ibm.com/fabric-security-research/tss v0.0.0-20230128193452-fc2c0de853b1 // indirect
-	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230128200337-44724e317768 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/sys v0.0.0-20210119212857-b64e53b001e4 // indirect
@@ -36,3 +36,4 @@ require (
 )
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+
