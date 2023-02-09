@@ -4,19 +4,22 @@ go 1.18
 
 require (
 	github.com/stretchr/testify v1.8.0
-	github.ibm.com/fabric-security-research/tss v0.0.0-20230209153005-855866828ae8
-	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209153005-855866828ae8
-	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209153005-855866828ae8
+	github.ibm.com/fabric-security-research/tss v0.0.0-20230209161921-a9190e15f864
+	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209161921-a9190e15f864
+	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209161921-a9190e15f864
 	go.uber.org/zap v1.24.0
 )
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
-	github.com/bnb-chain/tss-lib v0.0.0-00010101000000-000000000000 // indirect
-	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
+	github.com/bnb-chain/tss-lib v1.3.5 // indirect
+	github.com/btcsuite/btcd v0.23.4 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.3.2 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -39,4 +42,4 @@ require (
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
-replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20220923024411-14e70f2891f4
+replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56
