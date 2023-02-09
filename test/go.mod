@@ -4,15 +4,15 @@ go 1.18
 
 require (
 	github.com/stretchr/testify v1.8.0
-	github.ibm.com/fabric-security-research/tss v0.0.0-20230209135849-8d6cef62ff7c
-	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209135849-8d6cef62ff7c
-	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209135849-8d6cef62ff7c
+	github.ibm.com/fabric-security-research/tss v0.0.0-20230209153005-855866828ae8
+	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209153005-855866828ae8
+	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209153005-855866828ae8
 	go.uber.org/zap v1.24.0
 )
 
 require (
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
-	github.com/bnb-chain/tss-lib v1.3.5 // indirect
+	github.com/bnb-chain/tss-lib v0.0.0-00010101000000-000000000000 // indirect
 	github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 // indirect
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
