@@ -3,7 +3,7 @@ module github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa
 go 1.18
 
 require (
-	github.com/bnb-chain/tss-lib v0.0.0-00010101000000-000000000000
+	github.com/bnb-chain/tss-lib v1.3.5
 	github.com/golang/protobuf v1.5.2
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.22.0
