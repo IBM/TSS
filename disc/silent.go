@@ -23,7 +23,7 @@ type SilentSynchronizer struct {
 func (s *SilentSynchronizer) Synchronize(_ context.Context, f func([]uint16), topicToSynchronizeOn []byte, expectedMemberCount int, _ time.Duration) error {
 	var found bool
 	var members []uint16
-	s.startedSynchronizations.Range(func(key, value any) bool {
+	s.startedSynchronizations.Range(func(key, value interface{}) bool {
 		if bytes.Equal(hash([]byte(key.(string))), topicToSynchronizeOn) {
 			s.startedSynchronizations.Delete(key)
 			found = true
