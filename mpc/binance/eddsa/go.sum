@@ -3,8 +3,6 @@ github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBA
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43 h1:Vkf7rtHx8uHx8gDfkQaCdVfc+gfrF9v6sR6xJy7RXNg=
 github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43/go.mod h1:TnVqVdGEK8b6erOMkcyYGWzCQMw7HEMCOw3BgFYCFWs=
-github.com/binance-chain/tss-lib v1.3.3 h1:fW9O2ynr4j4apsx/2J39kv/xw/ia23mwmZI4gnmo48c=
-github.com/binance-chain/tss-lib v1.3.3/go.mod h1:xfM6gCPA61WIV5q5tK9Acdv46n1QJLhXnZ4eD17hJpI=
 github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8 h1:mOg8/RgDSHTQ1R0IR+LMDuW4TDShPv+JzYHuR4GLoNA=
 github.com/btcsuite/btcd v0.0.0-20190629003639-c26ffa870fd8/go.mod h1:3J08xEfcugPacsc34/LKRU2yO7YmuT8yt28J8k2+rrI=
 github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f/go.mod h1:TdznJufoqS23FtqVCzL0ZqgP5MqXbb4fg/WgDys70nA=
@@ -68,6 +66,8 @@ github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PK
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc h1:9lDbC6Rz4bwmou+oE6Dt4Cb2BGMur5eR/GYptkKUVHo=
 github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc/go.mod h1:bopw91TMyo8J3tvftk8xmU2kPmlrt4nScJQZU2hE5EM=
+github.com/yacovm/tss-lib v0.0.0-20220923024411-14e70f2891f4 h1:EhADXVuQTZ4S+b2yNXWq6UVcheh7yokKGk1TxFvbIwo=
+github.com/yacovm/tss-lib v0.0.0-20220923024411-14e70f2891f4/go.mod h1:o3zAAo7A88ZJnCE1qpjy1hTqPn+GPQlxRsj8soz14UU=
 go.uber.org/atomic v1.7.0 h1:ADUqmZGgLDDfbSL9ZmPxKTybcoEYHgpYfELNoN+7hsw=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/goleak v1.1.11 h1:wy28qYRKZgnJTxGxvye5/wgWr1EKjmUDGYox5mGlRlI=

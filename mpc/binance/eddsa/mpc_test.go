@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/binance-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/tss"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )

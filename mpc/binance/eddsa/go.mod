@@ -3,7 +3,7 @@ module github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa
 go 1.18
 
 require (
-	github.com/binance-chain/tss-lib v1.3.3
+	github.com/bnb-chain/tss-lib v1.3.5
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
 	github.com/golang/protobuf v1.5.2
 	github.com/stretchr/testify v1.8.0
@@ -32,3 +32,5 @@ require (
 )
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+
+replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20220923024411-14e70f2891f4
