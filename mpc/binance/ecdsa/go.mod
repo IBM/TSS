@@ -1,6 +1,6 @@
 module github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa
 
-go 1.17
+go 1.18
 
 require (
 	github.com/bnb-chain/tss-lib v0.0.0-00010101000000-000000000000
