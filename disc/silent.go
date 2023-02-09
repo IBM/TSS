@@ -6,17 +6,17 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
-	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-func NewSynchronizer(members []uint16, _ func(msg []byte), _ func(msg []byte, to uint16)) *SilentSynchronizer {
-	return &SilentSynchronizer{members: members}
+func NewSilentSynchronizer(pickmembers func(topic []byte, expectedMemberCount int) []uint16, _ []uint16, _ func(msg []byte), _ func(msg []byte, to uint16)) *SilentSynchronizer {
+	return &SilentSynchronizer{PickMembers: pickmembers}
 }
 
 type SilentSynchronizer struct {
-	members                 []uint16
+	PickMembers             func(topic []byte, expectedMemberCount int) []uint16
 	startedSynchronizations sync.Map
 }
 
@@ -38,14 +38,13 @@ func (s *SilentSynchronizer) Synchronize(_ context.Context, f func([]uint16), to
 		return nil
 	}
 
-	pickedMembers := randMembers(s.members, topicToSynchronizeOn, expectedMemberCount)
+	pickedMembers := s.PickMembers(topicToSynchronizeOn, expectedMemberCount)
 	s.startedSynchronizations.Store(string(topicToSynchronizeOn), pickedMembers)
 	f(pickedMembers)
 	return nil
 }
 
 func (s *SilentSynchronizer) HandleMessage(_ uint16, _ []byte) {
-
 }
 
 func hash(in []byte) []byte {
@@ -54,35 +53,29 @@ func hash(in []byte) []byte {
 	return h.Sum(nil)
 }
 
-type randFromHash struct {
-	i    int
-	hash []byte
+type RandFromHash struct {
+	i    uint64
+	Hash []byte
 }
 
-func (r randFromHash) Int63() int64 {
-	buff := make([]byte, 2)
-	binary.BigEndian.PutUint16(buff, uint16(r.i))
+func (r RandFromHash) Int63() int64 {
+	i := atomic.AddUint64(&r.i, 1)
+	buff := make([]byte, 8)
+	binary.BigEndian.PutUint64(buff, i)
 
-	prf := hmac.New(sha256.New, r.hash)
+	prf := hmac.New(sha256.New, r.Hash)
 	prf.Write(buff)
 	digest := prf.Sum(nil)
 
-	return int64(binary.BigEndian.Uint64(digest[:8]))
-}
+	n := int64(binary.BigEndian.Uint64(digest[:8]))
 
-func (r randFromHash) Seed(seed int64) {
-	panic("should not be ever called")
-}
-
-func randMembers(members []uint16, topic []byte, requiredSize int) []uint16 {
-	r := rand.New(&randFromHash{
-		hash: topic,
-	})
-
-	res := make([]uint16, requiredSize)
-	for i, index := range r.Perm(len(members)) {
-		res[i] = members[index]
+	if n < 0 {
+		n *= -1
 	}
 
-	return res
+	return n
+}
+
+func (r RandFromHash) Seed(seed int64) {
+	panic("should not be ever called")
 }
