@@ -1,0 +1,27 @@
+language: go
+
+env:
+  global:
+    - GOPRIVATE="github.ibm.com"
+
+go:
+  - 1.18.x
+
+
+jobs:
+  include:
+    - name:  library
+      script: bash scripts/testLib.sh
+      env: "LABEL=Library"
+
+    - name:  binance ECDSA
+      script: bash scripts/testBinanceECDSA.sh
+      env: "LABEL=ECDSA"
+
+    - name:  binance EDDSA
+      script: bash scripts/testBinanceEDDSA.sh
+      env: "LABEL=EDDSA"
+
+    - name:  integration tests
+      script: bash scripts/testIntegration.sh
+      env: "LABEL=Integration"
