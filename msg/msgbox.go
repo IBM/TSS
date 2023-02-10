@@ -22,6 +22,10 @@ type storedMessages struct {
 	messageCountPerSender map[uint16]int
 }
 
+type MessageHandler interface {
+	HandleMessage(msg *IncMessage)
+}
+
 func (sm *storedMessages) add(msg *IncMessage) {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
@@ -64,12 +68,12 @@ type Box struct {
 	startedSending              map[string]uint64
 	totalInFlightTopicsBySender map[uint16]map[string]struct{}
 	//Config
+	MessageHandler
 	NewTicker                 func(time.Duration) *time.Ticker
 	GCExpire                  time.Duration
 	GCSweep                   time.Duration
 	Logger                    Logger
 	ForwardSend               SendFunc
-	ForwardHandle             func(msg *IncMessage)
 	MaxInFlightTopicsBySender int
 }
 
@@ -140,7 +144,7 @@ func (b *Box) storeOrForward(msg *IncMessage) {
 	b.initialize()
 
 	if b.hasStartedSending(msg.Topic) {
-		b.ForwardHandle(msg)
+		b.MessageHandler.HandleMessage(msg)
 		return
 	}
 
@@ -260,7 +264,20 @@ func (b *Box) Send(msgType uint8, topic []byte, msg []byte, to ...UniversalID) {
 
 	b.lock.Lock()
 	b.startedSending[string(topic)] = atomic.LoadUint64(&b.currentGCEpochNum)
+	msgs := b.pendingMessages[string(topic)]
+	var messages []*IncMessage
+	if msgs != nil {
+		messages = msgs.messages
+	}
+
+	defer func() {
+		for _, msg := range messages {
+			b.HandleMessage(msg)
+		}
+	}()
+
 	delete(b.pendingMessages, string(topic))
+
 	b.lock.Unlock()
 
 	b.ForwardSend(msgType, topic, msg, to...)

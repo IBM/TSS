@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.ibm.com/fabric-security-research/tss/msg"
+
 	discovery "github.ibm.com/fabric-security-research/tss/disc"
 	"github.ibm.com/fabric-security-research/tss/rbc"
 
@@ -47,6 +49,10 @@ type Scheme struct {
 	SignerFactory SignerFactory
 	KeyGenFactory KeyGenFactory
 	Logger        Logger
+}
+
+func (s *Scheme) SetStoredData(d []byte) {
+	s.StoredData = d
 }
 
 func (s *Scheme) HandleMessage(msg *IncMessage) {
@@ -687,7 +693,7 @@ func (s *Scheme) setup() {
 	}
 }
 
-func DefaultScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16), membership func() map[UniversalID]PartyID) *Scheme {
+func LoudScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16), membership func() map[UniversalID]PartyID) MpcParty {
 	return &Scheme{
 		Membership:    membership,
 		Logger:        l,
@@ -726,6 +732,69 @@ func DefaultScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, thr
 			}
 		},
 	}
+}
+
+func SilentScheme(id uint16, l Logger, kgf KeyGenFactory, sf SignerFactory, threshold int, send func(msgType uint8, topic []byte, msg []byte, to ...uint16), membership func() map[UniversalID]PartyID, pickMembers func(topic []byte, expectedMemberCount int) []uint16) MpcParty {
+	s := &Scheme{
+		Membership:    membership,
+		Logger:        l,
+		KeyGenFactory: kgf,
+		SignerFactory: sf,
+		Send: func(msgType uint8, topic []byte, msg []byte, to ...UniversalID) {
+			destinations := make([]uint16, len(to))
+			for i, dst := range to {
+				destinations[i] = uint16(dst)
+			}
+			send(msgType, topic, msg, destinations...)
+		},
+		Threshold: threshold,
+		SelfID:    UniversalID(id),
+		RBF: func(bcast BroadcastFunc, fwd ForwardFunc, n int) ReliableBroadcast {
+			r := &rbc.Receiver{
+				SelfID: id,
+				Logger: l,
+				BroadcastAck: func(digest string, sender uint16, msgRound uint8) {
+					bcast(digest, sender, msgRound)
+				},
+				ForwardToBackend: func(msg interface{}, from uint16) {
+					fwd(msg, from)
+				},
+				N: n,
+			}
+			return &receiver{Receiver: r}
+		},
+		SyncFactory: func(members []uint16, _ func(msg []byte), _ func(msg []byte, to uint16)) Synchronizer {
+			return discovery.NewSilentSynchronizer(pickMembers, nil, nil, nil)
+		},
+	}
+
+	originalSend := s.Send
+
+	box := &msg.Box{
+		Logger:                    s.Logger,
+		MaxInFlightTopicsBySender: 10000,
+		GCSweep:                   time.Second * 20,
+		NewTicker: func(t time.Duration) *time.Ticker {
+			return time.NewTicker(t)
+		},
+		ForwardSend:    originalSend,
+		MessageHandler: s,
+		GCExpire:       time.Minute * 2,
+	}
+
+	embedded := &embeddedBoxWithScheme{Scheme: s, Box: box}
+	s.Send = embedded.Box.Send
+
+	return embedded
+}
+
+type embeddedBoxWithScheme struct {
+	*msg.Box
+	*Scheme
+}
+
+func (ebs *embeddedBoxWithScheme) HandleMessage(msg *IncMessage) {
+	ebs.Box.HandleMessage(msg)
 }
 
 type receiver struct {

@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func testScheme(t *testing.T, n int, signatureAlgorithms func([]*commLogger) (func(uint16) KeyGenerator, func(uint16) Signer), verifySig signatureVerifyFunc) {
+func testScheme(t *testing.T, n int, signatureAlgorithms func([]*commLogger) (func(uint16) KeyGenerator, func(uint16) Signer), verifySig signatureVerifyFunc, modifyScheme func(scheme *Scheme)) {
 	var members []uint16
 	for i := 1; i <= n; i++ {
 		members = append(members, uint16(i))
@@ -80,6 +80,9 @@ func testScheme(t *testing.T, n int, signatureAlgorithms func([]*commLogger) (fu
 
 	for id := 1; id <= n; id++ {
 		stop, s := createParty(id, kgf, sf, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
+		if modifyScheme != nil {
+			modifyScheme(s)
+		}
 		parties = append(parties, s)
 		stopFuncs = append(stopFuncs, stop)
 	}

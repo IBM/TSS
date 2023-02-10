@@ -105,3 +105,15 @@ type IncMessage struct {
 	MsgType uint8
 	Topic   []byte
 }
+
+type MpcParty interface {
+	Sign(c context.Context, msgHash []byte, topic string) ([]byte, error)
+
+	KeyGen(ctx context.Context, totalParties, threshold int) ([]byte, error)
+
+	HandleMessage(msg *IncMessage)
+
+	SetStoredData(data []byte)
+
+	ThresholdPK() ([]byte, error)
+}
