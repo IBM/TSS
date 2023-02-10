@@ -117,10 +117,10 @@ After generating a public key, the `threshold.Scheme` instance needs to be initi
 To do that, simply assign the `StoredData` field:
 
 ```
-// Initialize the instance, either explicitly, or using the default constructor as below
-s := threshold.DefaultScheme(...)
+// Initialize the instance, either explicitly, or using the a constructor function as below
+s := threshold.LoudScheme(...) // Or, threshold.SilentScheme(...)
 // Assign the secret data returned from KeyGen()
-s.StoredData = secretData
+s.SetStoredData(secretData)
 ```
 
 Then, two operations are available:
@@ -130,3 +130,16 @@ Then, two operations are available:
 
 - `Sign(c context.Context, msg []byte, topic string) ([]byte, error)`: Signs `msg` in the context of given `topic`. Returns the signature encoded by the `mpc` dependency injected. 
 To avoid denial of service by malicious parties that haven't received `msg`, `topic` must be unpredictable. 
+
+#### Bootstrapping membership without communication
+
+Before an instance of the TSS library can sign a message or generate a threshold key, it needs to discover who are the other parties
+that will participate in the protocol. Furthermore, the library needs to be instantiated at each node 
+running the protocol, else messages will be lost. There are two ways of achieving this:
+
+1. Running a membership establishment protocol to have the parties discover each other and wait for each other to start
+
+2. Decide deterministically who are the parties that will sign a message given its topic, and temporarily store protocol messages in memory and then insert them once the instance has started its
+execution.
+
+The first approach is implemented by the `LoudScheme` constructor method, while the second approach is implemented by the `SilentScheme` method.
