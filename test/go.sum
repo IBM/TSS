@@ -114,8 +114,8 @@ github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56 h1:Ckvk3pg95nzc0S3m
 github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56/go.mod h1:HEi1moNud2kDpYWcWTTyUZAJEEaRdNngVRwexMoiNEo=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
-github.ibm.com/fabric-security-research/tss v0.0.0-20230209161921-a9190e15f864 h1:/uibYw84zl1RKKw7Bn6kJRfDssd4g94TFMMTLj3PtmY=
-github.ibm.com/fabric-security-research/tss v0.0.0-20230209161921-a9190e15f864/go.mod h1:4Uyam5mbhJ8JrhI4cqR+6QtbZExLD/JuSt4VYyC5CCg=
+github.ibm.com/fabric-security-research/tss v0.0.0-20230210150543-23a10274517a h1:x25gqcjoJ+sdUbP7CKz+bTq6iCWD3yr1+9IUeCD1SXU=
+github.ibm.com/fabric-security-research/tss v0.0.0-20230210150543-23a10274517a/go.mod h1:4Uyam5mbhJ8JrhI4cqR+6QtbZExLD/JuSt4VYyC5CCg=
 github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209161921-a9190e15f864 h1:esHmZ+0+tbM1WpIpL0IsZf65BuF7msBlvA08gKl8UQQ=
 github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209161921-a9190e15f864/go.mod h1:jbiPwX/BVoIx0BpC9cpi72a/l2ta1j/SjZslQOmA9KY=
 github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209161921-a9190e15f864 h1:A7zoEqAWslH0rfLa5DSFA3pzfIHiHISE3WYlM1JNcwY=

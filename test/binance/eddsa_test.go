@@ -25,7 +25,20 @@ func TestThresholdBinanceEdDSA(t *testing.T) {
 
 	threshold.SyncInterval = time.Millisecond * 50
 
-	testScheme(t, n, signatureAlgorithms, verifySig, nil)
+	testScheme(t, n, signatureAlgorithms, verifySig, false)
+}
+
+func TestFastThresholdBinanceEdDSA(t *testing.T) {
+	n := 4
+
+	var verifySig signatureVerifyFunc
+
+	var signatureAlgorithms func([]*commLogger) (func(uint16) KeyGenerator, func(uint16) Signer)
+
+	verifySig = verifySignatureEdDSA
+	signatureAlgorithms = eddsaKeygenAndSign
+
+	testScheme(t, n, signatureAlgorithms, verifySig, true)
 }
 
 func eddsaKeygenAndSign(loggers []*commLogger) (func(id uint16) KeyGenerator, func(id uint16) Signer) {
