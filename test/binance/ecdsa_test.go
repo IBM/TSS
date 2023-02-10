@@ -3,16 +3,15 @@ package binance_test
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"github.com/stretchr/testify/assert"
-	discovery "github.ibm.com/fabric-security-research/tss/disc"
-	ecdsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa"
-	"github.ibm.com/fabric-security-research/tss/threshold"
-	. "github.ibm.com/fabric-security-research/tss/types"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	ecdsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa"
+	. "github.ibm.com/fabric-security-research/tss/types"
 )
 
 func TestThresholdBinanceECDSA(t *testing.T) {
-	n := 2
+	n := 4
 
 	var verifySig signatureVerifyFunc
 
@@ -21,7 +20,7 @@ func TestThresholdBinanceECDSA(t *testing.T) {
 	verifySig = verifySignatureECDSA
 	signatureAlgorithms = ecdsaKeygenAndSign
 
-	testScheme(t, n, signatureAlgorithms, verifySig, nil)
+	testScheme(t, n, signatureAlgorithms, verifySig, false)
 }
 
 func TestFastThresholdBinanceECDSA(t *testing.T) {
@@ -34,11 +33,7 @@ func TestFastThresholdBinanceECDSA(t *testing.T) {
 	verifySig = verifySignatureECDSA
 	signatureAlgorithms = ecdsaKeygenAndSign
 
-	testScheme(t, n, signatureAlgorithms, verifySig, func(s *threshold.Scheme) {
-		s.SyncFactory = func(members []uint16, broadcast func(msg []byte), send func(msg []byte, to uint16)) Synchronizer {
-			return discovery.NewSynchronizer(members, broadcast, send)
-		}
-	})
+	testScheme(t, n, signatureAlgorithms, verifySig, true)
 }
 
 func ecdsaKeygenAndSign(loggers []*commLogger) (func(id uint16) KeyGenerator, func(id uint16) Signer) {
