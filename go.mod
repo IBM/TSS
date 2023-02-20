@@ -1,4 +1,4 @@
-module github.ibm.com/fabric-security-research/tss
+module github.com/IBM/TSS
 
 go 1.18
 

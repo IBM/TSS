@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	. "github.ibm.com/fabric-security-research/tss/types"
+	. "github.com/IBM/TSS/types"
 )
 
 const (

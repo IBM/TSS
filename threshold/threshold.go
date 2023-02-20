@@ -18,12 +18,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.ibm.com/fabric-security-research/tss/msg"
-
-	discovery "github.ibm.com/fabric-security-research/tss/disc"
-	"github.ibm.com/fabric-security-research/tss/rbc"
-
-	. "github.ibm.com/fabric-security-research/tss/types"
+	discovery "github.com/IBM/TSS/disc"
+	"github.com/IBM/TSS/msg"
+	"github.com/IBM/TSS/rbc"
+	. "github.com/IBM/TSS/types"
 )
 
 var (

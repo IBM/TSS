@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
+	discovery "github.com/IBM/TSS/disc"
+	"github.com/IBM/TSS/rbc"
+	. "github.com/IBM/TSS/types"
 	"github.com/stretchr/testify/assert"
-	discovery "github.ibm.com/fabric-security-research/tss/disc"
-	"github.ibm.com/fabric-security-research/tss/rbc"
-	. "github.ibm.com/fabric-security-research/tss/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

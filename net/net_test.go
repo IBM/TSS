@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.ibm.com/fabric-security-research/tss/testutil/tlsgen"
+	"github.com/IBM/TSS/testutil/tlsgen"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
