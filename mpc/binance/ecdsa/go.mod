@@ -37,4 +37,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56
+replace github.com/bnb-chain/tss-lib => ../tss-lib
