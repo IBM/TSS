@@ -1,6 +1,6 @@
 name: CI
 run-name: Running CI jobs 🚀
-on: [push]
+on: [pull_request]
 jobs:
   library:
     runs-on: ubuntu-latest
