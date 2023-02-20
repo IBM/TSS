@@ -30,6 +30,10 @@ func init() {
 	tss.SetCurve(tss.Edwards())
 }
 
+func f() {
+
+}
+
 var (
 	msgURL2Round = map[string]uint8{
 		// DKG
