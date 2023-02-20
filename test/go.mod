@@ -42,6 +42,4 @@ require (
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 
-replace github.ibm.com/fabric-security-research/tss => github.com/IBM/TSS v0.0.0-20230220080903-3d91c3cea0d8
-
-replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56
+replace github.com/bnb-chain/tss-lib => ../mpc/binance/tss-lib
