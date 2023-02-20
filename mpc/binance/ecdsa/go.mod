@@ -1,4 +1,4 @@
-module github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa
+module github.com/IBM/TSS/mpc/binance/ecdsa
 
 go 1.18
 
