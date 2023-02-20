@@ -8,7 +8,9 @@ require (
 )
 
 require (
-	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230220083019-674e5367fe3b // indirect
+	github.com/IBM/TSS v0.0.0-20230220083019-674e5367fe3b
+	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230220083019-674e5367fe3b
+	github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230220084450-1d835d0d97e1
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/bnb-chain/tss-lib v1.3.5 // indirect
 	github.com/btcsuite/btcd v0.23.4 // indirect
@@ -33,12 +35,13 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
-	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
+
+replace github.ibm.com/fabric-security-research/tss => github.com/IBM/TSS v0.0.0-20230220080903-3d91c3cea0d8
 
 replace github.com/bnb-chain/tss-lib => github.com/yacovm/tss-lib v0.0.0-20230209155427-373ab5685f56
