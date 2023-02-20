@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ecdsa_scheme "github.com/IBM/TSS/mpc/binance/ecdsa"
+	. "github.com/IBM/TSS/types"
 	"github.com/stretchr/testify/assert"
 )
 

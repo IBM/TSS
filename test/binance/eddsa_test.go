@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/IBM/TSS/threshold"
-
 	eddsa_scheme "github.com/IBM/TSS/mpc/binance/eddsa"
-
+	"github.com/IBM/TSS/threshold"
+	. "github.com/IBM/TSS/types"
 	"github.com/stretchr/testify/assert"
 )
 

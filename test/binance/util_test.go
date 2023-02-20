@@ -20,9 +20,10 @@ import (
 	"time"
 
 	discovery "github.com/IBM/TSS/disc"
-
 	comm "github.com/IBM/TSS/net"
 	"github.com/IBM/TSS/testutil/tlsgen"
+	. "github.com/IBM/TSS/threshold"
+	. "github.com/IBM/TSS/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
