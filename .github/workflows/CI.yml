@@ -1,0 +1,22 @@
+name: CI
+run-name: Running CI jobs 🚀
+on: [push]
+jobs:
+  library:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: library tests
+        run: |
+          bash scripts/testLib.sh
+      - name: binance ECDSA
+        run: |
+          bash scripts/testBinanceECDSA.sh
+      - name: binance EDDSA
+        run: |
+          bash scripts/testBinanceEDDSA.sh
+      - name: integration tests
+        run: |
+          bash scripts/testIntegration.sh
+
