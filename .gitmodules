@@ -1,0 +1,3 @@
+[submodule "mpc/binance/tss-lib"]
+	path = mpc/binance/tss-lib
+	url = https://github.com/bnb-chain/tss-lib
