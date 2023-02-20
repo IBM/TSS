@@ -1,16 +1,14 @@
-module github.ibm.com/fabric-security-research/tss/test
+module github.com/IBM/TSS/test
 
 go 1.18
 
 require (
 	github.com/stretchr/testify v1.8.0
-	github.ibm.com/fabric-security-research/tss v0.0.0-20230210150543-23a10274517a
-	github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa v0.0.0-20230209161921-a9190e15f864
-	github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa v0.0.0-20230209161921-a9190e15f864
 	go.uber.org/zap v1.24.0
 )
 
 require (
+	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230220083019-674e5367fe3b // indirect
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/bnb-chain/tss-lib v1.3.5 // indirect
 	github.com/btcsuite/btcd v0.23.4 // indirect

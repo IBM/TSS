@@ -19,14 +19,12 @@ import (
 	"testing"
 	"time"
 
-	discovery "github.ibm.com/fabric-security-research/tss/disc"
+	discovery "github.com/IBM/TSS/disc"
 
+	comm "github.com/IBM/TSS/net"
+	"github.com/IBM/TSS/testutil/tlsgen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	comm "github.ibm.com/fabric-security-research/tss/net"
-	"github.ibm.com/fabric-security-research/tss/testutil/tlsgen"
-	. "github.ibm.com/fabric-security-research/tss/threshold"
-	. "github.ibm.com/fabric-security-research/tss/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

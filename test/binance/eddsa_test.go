@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.ibm.com/fabric-security-research/tss/threshold"
+	"github.com/IBM/TSS/threshold"
 
-	eddsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/eddsa"
+	eddsa_scheme "github.com/IBM/TSS/mpc/binance/eddsa"
 
 	"github.com/stretchr/testify/assert"
-	. "github.ibm.com/fabric-security-research/tss/types"
 )
 
 func TestThresholdBinanceEdDSA(t *testing.T) {

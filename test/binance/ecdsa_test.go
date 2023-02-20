@@ -5,9 +5,8 @@ import (
 	"crypto/x509"
 	"testing"
 
+	ecdsa_scheme "github.com/IBM/TSS/mpc/binance/ecdsa"
 	"github.com/stretchr/testify/assert"
-	ecdsa_scheme "github.ibm.com/fabric-security-research/tss/mpc/binance/ecdsa"
-	. "github.ibm.com/fabric-security-research/tss/types"
 )
 
 func TestThresholdBinanceECDSA(t *testing.T) {
