@@ -493,6 +493,7 @@ func (n *naiveInsecureEphemeralSigner) reconstructEphemeralSK(ctx context.Contex
 				return nil, err
 			}
 			tSK.Add(tSK, x.D)
+			tSK.Mod(tSK, elliptic.P256().Params().N)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
