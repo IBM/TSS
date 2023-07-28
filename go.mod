@@ -3,6 +3,7 @@ module github.com/IBM/TSS
 go 1.18
 
 require (
+	github.com/IBM/mathlib v0.0.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.22.0
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/IBM/mathlib v0.0.2 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.9.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

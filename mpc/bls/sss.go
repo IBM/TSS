@@ -17,8 +17,7 @@ type SSS struct {
 }
 
 var (
-	c          = math.Curves[1]
-	GroupOrder = c.GroupOrder
+	c = math.Curves[1]
 )
 
 type Polynomial []*math.Zr
