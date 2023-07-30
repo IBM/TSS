@@ -98,7 +98,7 @@ func (tbls *TBLS) ClassifyMsg(msgBytes []byte) (uint8, bool, error) {
 	case commitPK:
 		return commitPK, true, nil
 	case revealPK:
-		return commitPK, true, nil
+		return revealPK, true, nil
 	default:
 		return 0, false, fmt.Errorf("invalid prefix: %d", msgBytes[0])
 	}
