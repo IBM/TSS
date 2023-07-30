@@ -1,5 +1,10 @@
 # TSS: Threshold Signature Scheme library
 
+Currently, the build-in supported schemes are:
+ - ECDSA (binance's [tss-lib](https://github.com/bnb-chain/tss-lib))
+ - EdDSA (binance's [tss-lib](https://github.com/bnb-chain/tss-lib))
+ - BLS   (builtin implementation)
+
 ### Repository structure:
 
 - `disc`: Contains the discovery and synchronization module. Its role is to bootstrap the membership of the parties that are about to sign a message.
@@ -25,7 +30,8 @@ The repository contains different go modules:
 
 - `tss`: The main module of the library, receives threshold signature schemes as a dependency injection.
 - `mpc/binance`: Wraps around the threshold signature scheme of binance-chain and presents an API that `tss` understands.
-- `test`: Contains integration tests that instantiate `tss` with all implementations in `mpc` (currently only `mpc/binance`)
+- `mpc/bls`: Implements a threshold BLS using curves from [IBM/Mathlib](github.com/IBM/mathlib)
+- `test`: Contains integration tests that instantiate `tss` with all implementations in `mpc` (currently only `mpc/binance` and `mpc/bls`)
 
 The `test` module imports both `tss` and `mpc/binance` but neither `tss` nor `mpc/binance` do not import one another. 
 
@@ -143,3 +149,46 @@ running the protocol, else messages will be lost. There are two ways of achievin
 execution.
 
 The first approach is implemented by the `LoudScheme` constructor method, while the second approach is implemented by the `SilentScheme` method.
+
+
+#### Using threshold BLS:
+
+When using BLS, the `threshold.Scheme` only orchestrates the key generation, but not the signing.
+
+After generating the threshold key, persist the secret share of the party:
+```
+secretShareData, err := p.KeyGen(ctx, partynum, threshold)
+saveToSafePlace(secretShareData)
+```
+
+Next, initialize a bls.TBLS instance and initialize it:
+```
+signer := &bls.TBLS{
+	Logger: logger,
+	Party:  uint16(id),
+}
+
+parties := []uint16{1, 2, 3}
+signer.Init(parties, threshold, nil)
+signer.SetShareData(secretShareData)
+```
+
+Get the public key from the initialized signer:
+
+```
+pk, err := signer.ThresholdPK()
+```
+
+And proceed to sign the message:
+
+```
+sig, err := signer.Sign(nil, msgHash)
+```
+
+Next, verify multiple signatures signed by distinct signers, but make sure each party identifier corresponds
+to the correct signature:
+
+```
+err = v.Verify(msgHash, parties, [][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
+
+```
