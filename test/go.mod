@@ -3,8 +3,18 @@ module github.com/IBM/TSS/test
 go 1.18
 
 require (
-	github.com/stretchr/testify v1.8.0
+	github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b
+	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
+)
+
+require (
+	github.com/IBM/mathlib v0.0.2 // indirect
+	github.com/consensys/bavard v0.1.13 // indirect
+	github.com/consensys/gnark-crypto v0.9.1 // indirect
+	github.com/hyperledger/fabric-amcl v0.0.0-20210603140002-2670f91851c8 // indirect
+	github.com/mmcloughlin/addchain v0.4.0 // indirect
+	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
 require (
@@ -34,7 +44,7 @@ require (
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
