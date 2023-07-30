@@ -117,3 +117,8 @@ type MpcParty interface {
 
 	ThresholdPK() ([]byte, error)
 }
+
+type ThresholdVerifier interface {
+	Init([]byte) error
+	Verify(digest []byte, parties []uint16, signatures [][]byte) error
+}
