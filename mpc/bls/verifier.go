@@ -54,7 +54,15 @@ func (v *Verifier) Init(rawPP []byte) error {
 	return nil
 }
 
-func (v *Verifier) Verify(digest []byte, parties []uint16, signatures [][]byte) error {
+func (v *Verifier) Verify(digest []byte, parties []uint16, signatures [][]byte, signers []uint16) error {
+	if len(signers) == 0 {
+		panic("no signers")
+	}
+
+	if len(signatures) != len(signers) {
+		panic(fmt.Sprintf("%d signers but %d signatures", len(signers), len(signatures)))
+	}
+
 	sigs := make([]*math.G1, len(signatures))
 	for i := 0; i < len(signatures); i++ {
 		sig, err := c.NewG1FromBytes(signatures[i])
@@ -64,13 +72,13 @@ func (v *Verifier) Verify(digest []byte, parties []uint16, signatures [][]byte) 
 		sigs[i] = sig
 	}
 
-	evalPoints := make([]int64, len(parties))
-	var exists bool
-	for i := 0; i < len(evalPoints); i++ {
-		evalPoints[i], exists = v.parties2EvalPoints[parties[i]]
+	evalPoints := make([]int64, len(signers))
+	for i, signer := range signers {
+		evalPoint, exists := v.parties2EvalPoints[signer]
 		if !exists {
 			panic(fmt.Sprintf("signature %d was signed by an unknown party %d", i, parties[i]))
 		}
+		evalPoints[i] = evalPoint
 	}
 
 	sig := localAggregateSignatures(sigs, evalPoints...)
