@@ -9,6 +9,7 @@ package bls
 import (
 	"crypto/rand"
 	"fmt"
+
 	math "github.com/IBM/mathlib"
 )
 
@@ -45,8 +46,10 @@ func localAggregateSignatures(signatures []*math.G1, evaluationPoints ...int64) 
 
 	sum := zero
 
+	var signatureIndex int
 	for _, evaluationPoint := range evaluationPoints {
-		sum.Add(signatures[evaluationPoint-1].Mul(lagrangeCoefficient(evaluationPoint, evaluationPoints...)))
+		sum.Add(signatures[signatureIndex].Mul(lagrangeCoefficient(evaluationPoint, evaluationPoints...)))
+		signatureIndex++
 	}
 
 	return sum

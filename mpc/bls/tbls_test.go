@@ -3,9 +3,10 @@ package bls
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"testing"
+
 	math "github.com/IBM/mathlib"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestBLS(t *testing.T) {
@@ -53,8 +54,8 @@ func TestLocalThresholdBLS(t *testing.T) {
 		assert.NoError(t, localVerify(pks[i], digest[:], signatures[i]))
 	}
 
-	thresholdSignature := localAggregateSignatures(signatures, 1, 3)
-	thresholdPK := localAggregatePublicKeys(pks, 1, 3)
+	thresholdSignature := localAggregateSignatures(signatures[:2], 1, 2)
+	thresholdPK := localAggregatePublicKeys(pks, 1, 2)
 
 	assert.NoError(t, localVerify(thresholdPK, digest[:], thresholdSignature))
 }
