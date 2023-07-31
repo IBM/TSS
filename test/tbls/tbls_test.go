@@ -155,14 +155,24 @@ func TestThresholdBLS(t *testing.T) {
 		err = v.Init(pk)
 		assert.NoError(t, err)
 
-		// Iterate over all combinations of signatures and public keys
-		err = v.Verify(digest, members, [][]byte{signatures[0], signatures[1]}, []uint16{1, 2})
+		// Iterate over all combinations of signatures and public keys and verify each aggregated signature
+
+		sig, err := v.AggregateSignatures([][]byte{signatures[0], signatures[1]}, []uint16{1, 2})
 		assert.NoError(t, err)
 
-		err = v.Verify(digest, members, [][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
+		err = v.Verify(digest, sig)
 		assert.NoError(t, err)
 
-		err = v.Verify(digest, members, [][]byte{signatures[1], signatures[2]}, []uint16{2, 3})
+		sig, err = v.AggregateSignatures([][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
+		assert.NoError(t, err)
+
+		err = v.Verify(digest, sig)
+		assert.NoError(t, err)
+
+		sig, err = v.AggregateSignatures([][]byte{signatures[1], signatures[2]}, []uint16{2, 3})
+		assert.NoError(t, err)
+
+		err = v.Verify(digest, sig)
 		assert.NoError(t, err)
 	}
 }

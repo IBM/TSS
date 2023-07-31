@@ -3,7 +3,7 @@ module github.com/IBM/TSS/test
 go 1.18
 
 require (
-	github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b
+	github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
 )
