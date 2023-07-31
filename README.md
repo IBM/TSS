@@ -185,12 +185,12 @@ And proceed to sign the message:
 sig, err := signer.Sign(nil, msgHash)
 ```
 
-Next, verify multiple signatures signed by distinct signers, but make sure each party identifier corresponds
-to the correct signature:
+Next, aggregate multiple signatures signed by distinct signers, but make sure each party identifier corresponds
+to the correct signature, and verify the threshold signature returned:
 
 ```
 var v bls.Verifier
 err = v.Init(pk)
-err = v.Verify(msgHash, parties, [][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
-
+sig, err := v.AggregateSignatures([][]byte{sig1, sig3, []uint16{1, 3})
+err = v.Verify(msgHash, sig)
 ```
