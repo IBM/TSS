@@ -12,6 +12,8 @@ github.com/IBM/TSS/mpc/bls v0.0.0-20230730193801-702fa196111b h1:VLxDUbOl+wIftK+
 github.com/IBM/TSS/mpc/bls v0.0.0-20230730193801-702fa196111b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
 github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b h1:C86AFqck2qlYAnbHxjq+lfTM78R4d1ERI9xwX3E5wCg=
 github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca h1:Ru2fl/6lKFDqmK3wgkEN/Crn9GVtmRp1B3/+uoaTNgE=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
 github.com/IBM/mathlib v0.0.2 h1:HXXgHp1vUG6hG65ks8ZSgSsIKGlMzZFNxIOXoUnCN54=
 github.com/IBM/mathlib v0.0.2/go.mod h1:bwdPq6aFVeUiiLNwG8sIgN4yIB3yN8Nd9RRRe70XHkY=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
