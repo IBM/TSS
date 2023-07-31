@@ -189,6 +189,8 @@ Next, verify multiple signatures signed by distinct signers, but make sure each 
 to the correct signature:
 
 ```
+var v bls.Verifier
+err = v.Init(pk)
 err = v.Verify(msgHash, parties, [][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
 
 ```
