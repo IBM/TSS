@@ -93,8 +93,15 @@ func TestThresholdBLS(t *testing.T) {
 	t.Run("Verify", func(t *testing.T) {
 		var v Verifier
 		assert.NoError(t, v.Init(thresholdPK))
-		assert.NoError(t, v.Verify(digest[:], []uint16{1, 2, 3}, signatures[:2], []uint16{1, 2}))
-		assert.NoError(t, v.Verify(digest[:], []uint16{1, 2, 3}, signatures[1:], []uint16{2, 3}))
+
+		thresholdSignature, err := v.AggregateSignatures(signatures[:2], []uint16{1, 2})
+		assert.NoError(t, err)
+		assert.NoError(t, v.Verify(digest[:], thresholdSignature))
+
+		thresholdSignature, err = v.AggregateSignatures(signatures[1:], []uint16{2, 3})
+		assert.NoError(t, err)
+
+		assert.NoError(t, v.Verify(digest[:], thresholdSignature))
 	})
 }
 
