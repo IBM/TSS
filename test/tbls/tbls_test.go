@@ -166,32 +166,28 @@ func TestBenchmark(t *testing.T) {
 
 	var signatureCount uint32
 
-	runSigningBenchmark := uint32(1)
+	workload := uint32(10000)
 
 	var wg sync.WaitGroup
 	wg.Add(runtime.NumCPU())
 
+	start = time.Now()
+
 	for worker := 0; worker < runtime.NumCPU(); worker++ {
 		go func(worker int) {
-			var localSigCount uint32
+			signer := thresholdSigners[worker%len(thresholdSigners)]
 			defer wg.Done()
-			for localSigCount%100 != 0 || atomic.LoadUint32(&runSigningBenchmark) == 1 {
-				signer := thresholdSigners[worker%len(thresholdSigners)]
+			for i := 0; i < int(workload); i++ {
 				signer.Sign(nil, digest)
-				localSigCount++
 			}
-			atomic.AddUint32(&signatureCount, localSigCount)
+			atomic.AddUint32(&signatureCount, workload)
 
 		}(worker)
 	}
 
-	time.Sleep(time.Second * 5)
-	atomic.StoreUint32(&runSigningBenchmark, 0)
 	wg.Wait()
 
-	time.Sleep(time.Second)
-
-	fmt.Println(">>>>", signatureCount/5)
+	fmt.Println(">>>>", int(atomic.LoadUint32(&signatureCount))/int(time.Since(start).Seconds()))
 
 	for _, signer := range thresholdSigners {
 		sig, err := signer.Sign(nil, digest)
@@ -215,8 +211,6 @@ func TestBenchmark(t *testing.T) {
 	sig3, err := v.AggregateSignatures([][]byte{signatures[1], signatures[2]}, []uint16{2, 3})
 	assert.NoError(t, err)
 
-	runVerBenchmark := uint32(1)
-
 	tSigs := [][]byte{sig1, sig2, sig3}
 
 	var verCount uint32
@@ -224,24 +218,22 @@ func TestBenchmark(t *testing.T) {
 	wg = sync.WaitGroup{}
 	wg.Add(runtime.NumCPU())
 
+	start = time.Now()
 	for worker := 0; worker < runtime.NumCPU(); worker++ {
 		go func(worker int) {
 			defer wg.Done()
-			var localVerCount uint32
-			for localVerCount%100 != 0 || atomic.LoadUint32(&runVerBenchmark) == 1 {
-				sig := tSigs[worker%len(tSigs)]
+			sig := tSigs[worker%len(tSigs)]
+			for i := 0; i < int(workload); i++ {
 				v.Verify(digest, sig)
-				localVerCount++
 			}
-			atomic.AddUint32(&verCount, localVerCount)
+			atomic.AddUint32(&verCount, workload)
 		}(worker)
 	}
 
-	time.Sleep(time.Second * 5)
-	atomic.StoreUint32(&runVerBenchmark, 0)
 	wg.Wait()
 
-	fmt.Println(">>>>", atomic.LoadUint32(&verCount)/uint32(5))
+	fmt.Println(">>>>", int(atomic.LoadUint32(&verCount))/int(time.Since(start).Seconds()))
+
 }
 
 func keygen(t *testing.T, parties []MpcParty, n int) ([][]byte, time.Time) {
