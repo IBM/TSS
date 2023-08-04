@@ -175,7 +175,7 @@ func TestBenchmark(t *testing.T) {
 		go func(worker int) {
 			var localSigCount uint32
 			defer wg.Done()
-			for atomic.LoadUint32(&runSigningBenchmark) == 1 {
+			for localSigCount%100 != 0 || atomic.LoadUint32(&runSigningBenchmark) == 1 {
 				signer := thresholdSigners[worker%len(thresholdSigners)]
 				signer.Sign(nil, digest)
 				localSigCount++
@@ -228,7 +228,7 @@ func TestBenchmark(t *testing.T) {
 		go func(worker int) {
 			defer wg.Done()
 			var localVerCount uint32
-			for atomic.LoadUint32(&runVerBenchmark) == 1 {
+			for localVerCount%100 != 0 || atomic.LoadUint32(&runVerBenchmark) == 1 {
 				sig := tSigs[worker%len(tSigs)]
 				v.Verify(digest, sig)
 				localVerCount++
