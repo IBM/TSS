@@ -14,7 +14,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,61 +31,15 @@ import (
 )
 
 func TestThresholdBLS(t *testing.T) {
-	n := 3
-
-	var members []uint16
-	for i := 1; i <= n; i++ {
-		members = append(members, uint16(i))
-	}
-
-	ca, err := tlsgen.NewCA()
-	assert.NoError(t, err)
-
-	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM(ca.CertBytes())
-
-	tlsCert, err := ca.NewServerCertKeyPair("127.0.0.1")
-	assert.NoError(t, err)
-
 	var commParties []*comm.Party
 	var signers []*tlsgen.CertKeyPair
 	var loggers []*commLogger
 	var listeners []net.Listener
 	var stopFuncs []func()
 
-	membership := make(map[UniversalID]PartyID)
+	n := 3
 
-	for id := 1; id <= n; id++ {
-		l := logger(id, t.Name())
-		loggers = append(loggers, l)
-
-		s := newSigner(ca, t)
-		signers = append(signers, s)
-
-		lsnr := comm.Listen("127.0.0.1:0", tlsCert.Cert, tlsCert.Key)
-		listeners = append(listeners, lsnr)
-
-		commParties = append(commParties, &comm.Party{
-			Logger:   l,
-			Address:  lsnr.Addr().String(),
-			Identity: s.Cert,
-		})
-
-		membership[UniversalID(id)] = PartyID(id)
-	}
-
-	membershipFunc := func() map[UniversalID]PartyID {
-		return membership
-	}
-
-	var parties []MpcParty
-
-	kgf := func(id uint16) KeyGenerator {
-		return &bls.TBLS{
-			Logger: logger(int(id), fmt.Sprintf(t.Name())),
-			Party:  id,
-		}
-	}
+	members, certPool, loggers, signers, listeners, commParties, membershipFunc, parties, kgf := setup(t, n, loggers, signers, listeners, commParties)
 
 	for id := 1; id <= n; id++ {
 		stop, s := createParty(id, kgf, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
@@ -97,25 +53,7 @@ func TestThresholdBLS(t *testing.T) {
 		}
 	}()
 
-	var wg sync.WaitGroup
-	wg.Add(len(parties))
-
-	shares := make([][]byte, n)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	start := time.Now()
-	for i, p := range parties {
-		go func(i int, p MpcParty) {
-			defer wg.Done()
-			secretShareData, err := p.KeyGen(ctx, len(parties), n-1)
-			shares[i] = secretShareData
-			assert.NoError(t, err)
-			assert.NotNil(t, secretShareData)
-		}(i, p)
-	}
-
-	wg.Wait()
-	cancel()
+	shares, start := keygen(t, parties, n)
 
 	elapsed := time.Since(start)
 	t.Log("DKG elapsed", elapsed)
@@ -175,6 +113,198 @@ func TestThresholdBLS(t *testing.T) {
 		err = v.Verify(digest, sig)
 		assert.NoError(t, err)
 	}
+}
+
+func TestBenchmark(t *testing.T) {
+	var commParties []*comm.Party
+	var signers []*tlsgen.CertKeyPair
+	var loggers []*commLogger
+	var listeners []net.Listener
+	var stopFuncs []func()
+
+	n := 3
+
+	members, certPool, loggers, signers, listeners, commParties, membershipFunc, parties, kgf := setup(t, n, loggers, signers, listeners, commParties)
+
+	for id := 1; id <= n; id++ {
+		stop, s := createParty(id, kgf, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
+		parties = append(parties, s)
+		stopFuncs = append(stopFuncs, stop)
+	}
+
+	defer func() {
+		for _, stop := range stopFuncs {
+			stop()
+		}
+	}()
+
+	shares, start := keygen(t, parties, n)
+
+	elapsed := time.Since(start)
+	t.Log("DKG elapsed", elapsed)
+
+	// Create the threshold signers.
+	thresholdSigners := make([]*bls.TBLS, n)
+	for id := 1; id <= n; id++ {
+		thresholdSigners[id-1] = &bls.TBLS{
+			Logger: logger(id, t.Name()),
+			Party:  uint16(id),
+		}
+	}
+
+	// Initialize them with a nil send function
+	for i, signer := range thresholdSigners {
+		signer.Init(members, n-1, nil)
+		signer.SetShareData(shares[i])
+	}
+
+	var signatures [][]byte
+
+	// Sign a message
+	msg := []byte("Three can keep a secret, if two of them are dead.")
+	digest := sha256Digest(msg)
+
+	var signatureCount uint32
+
+	runSigningBenchmark := uint32(1)
+
+	var wg sync.WaitGroup
+	wg.Add(runtime.NumCPU())
+
+	for worker := 0; worker < runtime.NumCPU(); worker++ {
+		go func(worker int) {
+			defer wg.Done()
+			for atomic.LoadUint32(&runSigningBenchmark) == 1 {
+				signer := thresholdSigners[worker%len(thresholdSigners)]
+				atomic.AddUint32(&signatureCount, 1)
+				signer.Sign(nil, digest)
+			}
+		}(worker)
+	}
+
+	time.Sleep(time.Second * 5)
+	atomic.StoreUint32(&runSigningBenchmark, 0)
+	wg.Wait()
+
+	time.Sleep(time.Second)
+
+	fmt.Println(">>>>", signatureCount/5)
+
+	for _, signer := range thresholdSigners {
+		sig, err := signer.Sign(nil, digest)
+		assert.NoError(t, err)
+		signatures = append(signatures, sig)
+	}
+
+	pk, err := thresholdSigners[0].ThresholdPK()
+	assert.NoError(t, err)
+
+	var v bls.Verifier
+	err = v.Init(pk)
+	assert.NoError(t, err)
+
+	sig1, err := v.AggregateSignatures([][]byte{signatures[0], signatures[1]}, []uint16{1, 2})
+	assert.NoError(t, err)
+
+	sig2, err := v.AggregateSignatures([][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
+	assert.NoError(t, err)
+
+	sig3, err := v.AggregateSignatures([][]byte{signatures[1], signatures[2]}, []uint16{2, 3})
+	assert.NoError(t, err)
+
+	runVerBenchmark := uint32(1)
+
+	tSigs := [][]byte{sig1, sig2, sig3}
+
+	var verCount uint32
+
+	for worker := 0; worker < runtime.NumCPU(); worker++ {
+		go func(worker int) {
+			for atomic.LoadUint32(&runVerBenchmark) == 1 {
+				sig := tSigs[worker%len(tSigs)]
+				v.Verify(digest, sig)
+				atomic.AddUint32(&verCount, 1)
+			}
+		}(worker)
+	}
+
+	time.Sleep(time.Second * 5)
+	atomic.StoreUint32(&runVerBenchmark, 0)
+	fmt.Println(">>>>", atomic.LoadUint32(&verCount)/uint32(5))
+}
+
+func keygen(t *testing.T, parties []MpcParty, n int) ([][]byte, time.Time) {
+	var wg sync.WaitGroup
+	wg.Add(len(parties))
+
+	shares := make([][]byte, n)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	start := time.Now()
+	for i, p := range parties {
+		go func(i int, p MpcParty) {
+			defer wg.Done()
+			secretShareData, err := p.KeyGen(ctx, len(parties), n-1)
+			shares[i] = secretShareData
+			assert.NoError(t, err)
+			assert.NotNil(t, secretShareData)
+		}(i, p)
+	}
+
+	wg.Wait()
+	cancel()
+	return shares, start
+}
+
+func setup(t *testing.T, n int, loggers []*commLogger, signers []*tlsgen.CertKeyPair, listeners []net.Listener, commParties []*comm.Party) ([]uint16, *x509.CertPool, []*commLogger, []*tlsgen.CertKeyPair, []net.Listener, []*comm.Party, func() map[UniversalID]PartyID, []MpcParty, func(id uint16) KeyGenerator) {
+	var members []uint16
+	for i := 1; i <= n; i++ {
+		members = append(members, uint16(i))
+	}
+
+	ca, err := tlsgen.NewCA()
+	assert.NoError(t, err)
+
+	certPool := x509.NewCertPool()
+	certPool.AppendCertsFromPEM(ca.CertBytes())
+
+	tlsCert, err := ca.NewServerCertKeyPair("127.0.0.1")
+	assert.NoError(t, err)
+
+	membership := make(map[UniversalID]PartyID)
+
+	for id := 1; id <= n; id++ {
+		l := logger(id, t.Name())
+		loggers = append(loggers, l)
+
+		s := newSigner(ca, t)
+		signers = append(signers, s)
+
+		lsnr := comm.Listen("127.0.0.1:0", tlsCert.Cert, tlsCert.Key)
+		listeners = append(listeners, lsnr)
+
+		commParties = append(commParties, &comm.Party{
+			Logger:   l,
+			Address:  lsnr.Addr().String(),
+			Identity: s.Cert,
+		})
+
+		membership[UniversalID(id)] = PartyID(id)
+	}
+
+	membershipFunc := func() map[UniversalID]PartyID {
+		return membership
+	}
+
+	var parties []MpcParty
+
+	kgf := func(id uint16) KeyGenerator {
+		return &bls.TBLS{
+			Logger: logger(int(id), fmt.Sprintf(t.Name())),
+			Party:  id,
+		}
+	}
+	return members, certPool, loggers, signers, listeners, commParties, membershipFunc, parties, kgf
 }
 
 func createParty(id int, kgf func(id uint16) KeyGenerator, signer *tlsgen.CertKeyPair, n int, certPool *x509.CertPool, listeners []net.Listener, loggers []*commLogger, commParties []*comm.Party, membershipFunc func() map[UniversalID]PartyID) (func(), MpcParty) {
