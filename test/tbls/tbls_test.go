@@ -173,12 +173,15 @@ func TestBenchmark(t *testing.T) {
 
 	for worker := 0; worker < runtime.NumCPU(); worker++ {
 		go func(worker int) {
+			var localSigCount uint32
 			defer wg.Done()
 			for atomic.LoadUint32(&runSigningBenchmark) == 1 {
 				signer := thresholdSigners[worker%len(thresholdSigners)]
-				atomic.AddUint32(&signatureCount, 1)
 				signer.Sign(nil, digest)
+				localSigCount++
 			}
+			atomic.AddUint32(&signatureCount, localSigCount)
+
 		}(worker)
 	}
 
@@ -218,18 +221,26 @@ func TestBenchmark(t *testing.T) {
 
 	var verCount uint32
 
+	wg = sync.WaitGroup{}
+	wg.Add(runtime.NumCPU())
+
 	for worker := 0; worker < runtime.NumCPU(); worker++ {
 		go func(worker int) {
+			defer wg.Done()
+			var localVerCount uint32
 			for atomic.LoadUint32(&runVerBenchmark) == 1 {
 				sig := tSigs[worker%len(tSigs)]
 				v.Verify(digest, sig)
-				atomic.AddUint32(&verCount, 1)
+				localVerCount++
 			}
+			atomic.AddUint32(&verCount, localVerCount)
 		}(worker)
 	}
 
 	time.Sleep(time.Second * 5)
 	atomic.StoreUint32(&runVerBenchmark, 0)
+	wg.Wait()
+
 	fmt.Println(">>>>", atomic.LoadUint32(&verCount)/uint32(5))
 }
 
