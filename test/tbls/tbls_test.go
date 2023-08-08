@@ -181,7 +181,6 @@ func TestBenchmark(t *testing.T) {
 				signer.Sign(nil, digest)
 			}
 			atomic.AddUint32(&signatureCount, workload)
-
 		}(worker)
 	}
 
@@ -236,7 +235,123 @@ func TestBenchmark(t *testing.T) {
 
 }
 
-func keygen(t *testing.T, parties []MpcParty, n int) ([][]byte, time.Time) {
+// example usage: go test -bench BenchmarkParallelInvocation -run=^$ -cpu=1,2,4,8,16,32,64
+func BenchmarkParallelInvocation(b *testing.B) {
+
+	var commParties []*comm.Party
+	var signers []*tlsgen.CertKeyPair
+	var loggers []*commLogger
+	var listeners []net.Listener
+	var stopFuncs []func()
+
+	n := 3
+
+	members, certPool, loggers, signers, listeners, commParties, membershipFunc, parties, kgf := setup(b, n, loggers, signers, listeners, commParties)
+
+	for _, l := range loggers {
+		l.mute()
+	}
+
+	for id := 1; id <= n; id++ {
+		stop, s := createParty(id, kgf, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
+		parties = append(parties, s)
+		stopFuncs = append(stopFuncs, stop)
+	}
+
+	defer func() {
+		for _, stop := range stopFuncs {
+			stop()
+		}
+	}()
+
+	shares, start := keygen(b, parties, n)
+
+	elapsed := time.Since(start)
+	b.Log("DKG elapsed", elapsed)
+
+	// Create the threshold signers.
+	thresholdSigners := make([]*bls.TBLS, n)
+	for id := 1; id <= n; id++ {
+		thresholdSigners[id-1] = &bls.TBLS{
+			Logger: logger(id, b.Name()),
+			Party:  uint16(id),
+		}
+	}
+
+	// Initialize them with a nil send function
+	for i, signer := range thresholdSigners {
+		signer.Init(members, n-1, nil)
+		signer.SetShareData(shares[i])
+	}
+
+	// Sign a message
+	msg := []byte("Three can keep a secret, if two of them are dead.")
+	digest := sha256Digest(msg)
+
+	var signatures [][]byte
+	//var signatureCount uint32
+
+	for _, signer := range thresholdSigners {
+		sig, err := signer.Sign(nil, digest)
+		assert.NoError(b, err)
+		signatures = append(signatures, sig)
+	}
+
+	pk, err := thresholdSigners[0].ThresholdPK()
+	assert.NoError(b, err)
+
+	var v bls.Verifier
+	err = v.Init(pk)
+	assert.NoError(b, err)
+
+	sig1, err := v.AggregateSignatures([][]byte{signatures[0], signatures[1]}, []uint16{1, 2})
+	assert.NoError(b, err)
+
+	sig2, err := v.AggregateSignatures([][]byte{signatures[0], signatures[2]}, []uint16{1, 3})
+	assert.NoError(b, err)
+
+	sig3, err := v.AggregateSignatures([][]byte{signatures[1], signatures[2]}, []uint16{2, 3})
+	assert.NoError(b, err)
+
+	tSigs := [][]byte{sig1, sig2, sig3}
+
+	parallelism := 1
+
+	b.Run(fmt.Sprintf("sign-p%d", parallelism), func(b *testing.B) {
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			signer := thresholdSigners[parallelism%len(thresholdSigners)]
+			var sig []byte
+			var err error
+			for pb.Next() {
+				sig, err = signer.Sign(nil, digest)
+			}
+			// store results to prevent compiler optimizations
+			gsig = sig
+			gerr = err
+		})
+		b.StopTimer()
+	})
+
+	b.Run(fmt.Sprintf("verify-p%d", parallelism), func(b *testing.B) {
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			sig := tSigs[parallelism%len(tSigs)]
+			var err error
+			for pb.Next() {
+				err = v.Verify(digest, sig)
+			}
+			// store results to prevent compiler optimizations
+			gerr = err
+		})
+		b.StopTimer()
+	})
+}
+
+var gsig []byte
+var gerr error
+
+func keygen(t TestingT, parties []MpcParty, n int) ([][]byte, time.Time) {
 	var wg sync.WaitGroup
 	wg.Add(len(parties))
 
@@ -259,7 +374,7 @@ func keygen(t *testing.T, parties []MpcParty, n int) ([][]byte, time.Time) {
 	return shares, start
 }
 
-func setup(t *testing.T, n int, loggers []*commLogger, signers []*tlsgen.CertKeyPair, listeners []net.Listener, commParties []*comm.Party) ([]uint16, *x509.CertPool, []*commLogger, []*tlsgen.CertKeyPair, []net.Listener, []*comm.Party, func() map[UniversalID]PartyID, []MpcParty, func(id uint16) KeyGenerator) {
+func setup(t TestingT, n int, loggers []*commLogger, signers []*tlsgen.CertKeyPair, listeners []net.Listener, commParties []*comm.Party) ([]uint16, *x509.CertPool, []*commLogger, []*tlsgen.CertKeyPair, []net.Listener, []*comm.Party, func() map[UniversalID]PartyID, []MpcParty, func(id uint16) KeyGenerator) {
 	var members []uint16
 	for i := 1; i <= n; i++ {
 		members = append(members, uint16(i))
@@ -407,9 +522,15 @@ func sha256Digest(b ...[]byte) []byte {
 	return hash.Sum(nil)
 }
 
-func newSigner(ca tlsgen.CA, t *testing.T) *tlsgen.CertKeyPair {
+func newSigner(ca tlsgen.CA, t TestingT) *tlsgen.CertKeyPair {
 	clientPair, err := ca.NewClientCertKeyPair()
 	assert.NoError(t, err, "failed to create client key pair")
 
 	return clientPair
+}
+
+// TestingT is an interface wrapper around *testing.T
+type TestingT interface {
+	Errorf(format string, args ...interface{})
+	Name() string
 }
