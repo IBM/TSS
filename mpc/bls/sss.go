@@ -7,57 +7,61 @@ SPDX-License-Identifier: Apache-2.0
 package bls
 
 import (
-	"io"
+	"math/big"
 
-	math "github.com/IBM/mathlib"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	"github.com/consensys/gnark-crypto/field/pool"
 )
 
 type SSS struct {
 	Threshold int
 }
 
-var (
-	c = math.Curves[1]
-)
+type Polynomial []*big.Int
 
-type Polynomial []*math.Zr
-
-func (p Polynomial) ValueAt(x int) *math.Zr {
-	sum := c.NewZrFromInt(0)
+func (p Polynomial) ValueAt(x int) *big.Int {
+	X := big.NewInt(int64(x))
+	sum := big.NewInt(0)
 	for i := 0; i < len(p); i++ {
-		exp := c.NewZrFromInt(int64(i))
-		sum = sum.Plus(c.NewZrFromInt(int64(x)).PowMod(exp).Mul(p[i]))
+		exp := big.NewInt(int64(i))
+		xExp := big.NewInt(int64(0)).Exp(X, exp, fr.Modulus())
+		y := big.NewInt(0).Mul(xExp, p[i])
+		y.Mod(y, fr.Modulus())
+		sum.Add(sum, y)
 	}
-	sum.Mod(c.GroupOrder)
+
+	sum.Mod(sum, fr.Modulus())
+
 	return sum
 }
 
-func (s Shares) reconstruct(evaluationPoints ...int64) *math.Zr {
-	sum := c.NewZrFromInt(0)
+func (s Shares) reconstruct(evaluationPoints ...int64) *big.Int {
+	sum := big.NewInt(0)
+
 	for _, x := range evaluationPoints {
-		sum = sum.Plus(s[x-1].Mul(lagrangeCoefficient(x, evaluationPoints...)))
-		sum.Mod(c.GroupOrder)
+		sum.Add(sum, big.NewInt(0).Mul(s[x-1], lagrangeCoefficient(x, evaluationPoints...)))
+		sum.Mod(sum, fr.Modulus())
 	}
 
 	return sum
 }
 
-type Shares []*math.Zr
+type Shares []*big.Int
 
 // Gen receives as input a number of shares to output,
 // and outputs a mapping from evaluation point to point.
 // The evaluation points are numbered {1, ..., n}
-func (sss *SSS) Gen(n int, rand io.Reader) (Polynomial, Shares) {
+func (sss *SSS) Gen(n int) (Polynomial, Shares) {
 	// Create a random polynomial
 
 	polynomial := make(Polynomial, sss.Threshold)
 
 	for i := 0; i < sss.Threshold; i++ {
-		polynomial[i] = c.NewRandomZr(rand)
+		polynomial[i] = randomFE()
 	}
 
 	// Create the shares
-	shares := make([]*math.Zr, n)
+	shares := make([]*big.Int, n)
 	for evaluationPoint := 1; evaluationPoint <= n; evaluationPoint++ {
 		shares[evaluationPoint-1] = polynomial.ValueAt(evaluationPoint)
 	}
@@ -65,35 +69,52 @@ func (sss *SSS) Gen(n int, rand io.Reader) (Polynomial, Shares) {
 	return polynomial, shares
 }
 
-func lagrangeCoefficient(evaluatedAt int64, evaluationPoints ...int64) *math.Zr {
-	var prodElements []*math.Zr
+func lagrangeCoefficient(evaluatedAt int64, evaluationPoints ...int64) *big.Int {
+	var prodElements []*big.Int
+
+	iScalar := big.NewInt(evaluatedAt)
 
 	for _, j := range evaluationPoints {
 		if evaluatedAt == j {
 			continue
 		}
 
-		iScalar := c.NewZrFromInt(evaluatedAt)
-		jScalar := c.NewZrFromInt(j)
+		jScalar := pool.BigInt.Get().SetInt64(j)
 
-		nominator := jScalar.Copy() // j
+		nominator := jScalar // j
 
-		denominator := c.ModSub(jScalar, iScalar, c.GroupOrder) // j-i
+		n := big.NewInt(0)
+		n.Sub(jScalar, iScalar) // j-i
+		denominator := n.Mod(n, fr.Modulus())
 
-		denominator.InvModP(c.GroupOrder)
-		division := nominator.Mul(denominator) // j / (j-i)
+		denominator.ModInverse(denominator, fr.Modulus())
+
+		division := nominator.Mul(nominator, denominator) // j / (j-i)
 
 		prodElements = append(prodElements, division)
+
+		pool.BigInt.Put(jScalar)
 	}
 
 	if len(prodElements) == 0 {
 		panic("empty lagrange coefficient vector")
 	}
 
-	prod := prodElements[0].Copy()
+	prod := prodElements[0]
 	for i := 1; i < len(prodElements); i++ {
-		prod = prod.Mul(prodElements[i])
+		prod = prod.Mul(prod, prodElements[i])
 	}
 
 	return prod
+}
+
+func randomFE() *big.Int {
+	res := new(big.Int)
+	v := &fr.Element{}
+	_, err := v.SetRandom()
+	if err != nil {
+		panic(err)
+	}
+
+	return v.ToBigIntRegular(res)
 }
