@@ -27,6 +27,16 @@ func TestLocalSignVerify(t *testing.T) {
 	sig := localSign(sk, digest)
 	pk := makePublicKey(sk)
 	assert.NoError(t, localVerify(pk, digest, sig))
+
+	h = sha256.New()
+	h.Write([]byte("the little fox hops over the lazy dog"))
+	digest2 := h.Sum(nil)
+
+	assert.EqualError(t, localVerify(pk, digest2, sig), "signature mismatch")
+
+	sig2 := localSign(sk, digest2)
+
+	assert.EqualError(t, localVerify(pk, digest, sig2), "signature mismatch")
 }
 
 func TestLocalThresholdBLS(t *testing.T) {
