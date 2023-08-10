@@ -3,16 +3,14 @@ module github.com/IBM/TSS/test
 go 1.18
 
 require (
-	github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca
+	github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
 )
 
 require (
-	github.com/IBM/mathlib v0.0.2 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.9.1 // indirect
-	github.com/hyperledger/fabric-amcl v0.0.0-20210603140002-2670f91851c8 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )

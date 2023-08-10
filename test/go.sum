@@ -6,16 +6,8 @@ github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230220083019-674e5367fe3b h1:fccIO
 github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230220083019-674e5367fe3b/go.mod h1:hm6JogtfuukUzc/nnVju3fiWOl6cciPdBgfh7KCMUuE=
 github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230220084450-1d835d0d97e1 h1:/iSQjT9H9xEMV9/21Pswte0P8jE49av44AuEjBJsv3E=
 github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230220084450-1d835d0d97e1/go.mod h1:IG6tWix2ZEcA1imLeO2S07zVr6m+mplgmWZ846h8PgU=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730173616-54aebea4c6e5 h1:BnscnTnR/lk+ru8NHdl5y3mI/TKuwhaPEcAKaAa0SSI=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730173616-54aebea4c6e5/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730193801-702fa196111b h1:VLxDUbOl+wIftK+us+EbbupIFTSpOjGHEWnooiLeOPQ=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730193801-702fa196111b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b h1:C86AFqck2qlYAnbHxjq+lfTM78R4d1ERI9xwX3E5wCg=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230730214348-1e35023b0a3b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca h1:Ru2fl/6lKFDqmK3wgkEN/Crn9GVtmRp1B3/+uoaTNgE=
-github.com/IBM/TSS/mpc/bls v0.0.0-20230731110717-9c98d01b4cca/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
-github.com/IBM/mathlib v0.0.2 h1:HXXgHp1vUG6hG65ks8ZSgSsIKGlMzZFNxIOXoUnCN54=
-github.com/IBM/mathlib v0.0.2/go.mod h1:bwdPq6aFVeUiiLNwG8sIgN4yIB3yN8Nd9RRRe70XHkY=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b h1:ZsqrGt9U4Rs3FjsJplz7Uj82X5LsFOvlRofjttTDbQo=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43 h1:Vkf7rtHx8uHx8gDfkQaCdVfc+gfrF9v6sR6xJy7RXNg=
@@ -84,8 +76,6 @@ github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brv
 github.com/hashicorp/go-multierror v1.0.0 h1:iVjPR7a6H0tWELX5NxNe7bYopibicUzc7uPribsnS6o=
 github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
-github.com/hyperledger/fabric-amcl v0.0.0-20210603140002-2670f91851c8 h1:BCR8ZlOZ+deUbWxyY6fpoY8LbB7PR5wGGwCTvWQOU2g=
-github.com/hyperledger/fabric-amcl v0.0.0-20210603140002-2670f91851c8/go.mod h1:X+DIyUsaTmalOpmpQfIvFZjKHQedrURQ5t4YqquX7lE=
 github.com/ipfs/go-log v0.0.1 h1:9XTUN/rW64BCG1YhPK9Hoy3q8nr4gOmHHBpgFdfw6Lc=
 github.com/ipfs/go-log v0.0.1/go.mod h1:kL1d2/hzSpI0thNYjiKfjanbVNU+IIGA/WnNESY9leM=
 github.com/jessevdk/go-flags v0.0.0-20141203071132-1679536dcc89/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
