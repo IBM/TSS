@@ -10,7 +10,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 
-	math "github.com/IBM/mathlib"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
 type PublicParams struct {
@@ -20,8 +20,8 @@ type PublicParams struct {
 }
 
 type Verifier struct {
-	pks                []*math.G2
-	tPK                *math.G2
+	pks                []bn254.G2Affine
+	tPK                bn254.G2Affine
 	parties2EvalPoints map[uint16]int64
 }
 
@@ -31,15 +31,15 @@ func (v *Verifier) Init(rawPP []byte) error {
 		return err
 	}
 
-	var err error
 	v.pks = nil
-	v.tPK, err = c.NewG2FromBytes(pp.ThresholdPK)
+	_, err := v.tPK.SetBytes(pp.ThresholdPK)
 	if err != nil {
 		return err
 	}
 
 	for _, rawPK := range pp.PublicKeys {
-		if pk, err := c.NewG2FromBytes(rawPK); err != nil {
+		var pk bn254.G2Affine
+		if _, err := pk.SetBytes(rawPK); err != nil {
 			return err
 		} else {
 			v.pks = append(v.pks, pk)
@@ -63,9 +63,10 @@ func (v *Verifier) AggregateSignatures(signatures [][]byte, signers []uint16) ([
 		panic(fmt.Sprintf("%d signers but %d signatures", len(signers), len(signatures)))
 	}
 
-	sigs := make([]*math.G1, len(signatures))
+	sigs := make([]bn254.G1Affine, len(signatures))
 	for i := 0; i < len(signatures); i++ {
-		sig, err := c.NewG1FromBytes(signatures[i])
+		var sig bn254.G1Affine
+		_, err := sig.SetBytes(signatures[i])
 		if err != nil {
 			return nil, err
 		}
@@ -81,14 +82,16 @@ func (v *Verifier) AggregateSignatures(signatures [][]byte, signers []uint16) ([
 		evalPoints[i] = evalPoint
 	}
 
-	return localAggregateSignatures(sigs, evalPoints...).Bytes(), nil
+	res := localAggregateSignatures(sigs, evalPoints...).Bytes()
+	return res[:], nil
 }
 
 func (v *Verifier) Verify(digest []byte, signature []byte) error {
-	sig, err := c.NewG1FromBytes(signature)
+	var sig bn254.G1Affine
+	_, err := sig.SetBytes(signature)
 	if err != nil {
 		return err
 	}
 
-	return localVerify(v.tPK, digest, sig)
+	return localVerify(&v.tPK, digest, &sig)
 }
