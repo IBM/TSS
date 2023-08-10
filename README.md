@@ -30,7 +30,7 @@ The repository contains different go modules:
 
 - `tss`: The main module of the library, receives threshold signature schemes as a dependency injection.
 - `mpc/binance`: Wraps around the threshold signature scheme of binance-chain and presents an API that `tss` understands.
-- `mpc/bls`: Implements a threshold BLS using curves from [IBM/Mathlib](github.com/IBM/mathlib)
+- `mpc/bls`: Implements a threshold BLS using [bn254](https://github.com/Consensys/gnark-crypto/tree/master/ecc/bn254) from [Gnark-crypto](https://github.com/Consensys/gnark-crypto).
 - `test`: Contains integration tests that instantiate `tss` with all implementations in `mpc` (currently only `mpc/binance` and `mpc/bls`)
 
 The `test` module imports both `tss` and `mpc/binance` but neither `tss` nor `mpc/binance` do not import one another. 
