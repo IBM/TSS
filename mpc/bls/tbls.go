@@ -7,101 +7,64 @@ SPDX-License-Identifier: Apache-2.0
 package bls
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/big"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	math "github.com/IBM/mathlib"
 )
-
-var (
-	g2 bn254.G2Affine
-)
-
-func init() {
-	_, _, _, g2 = bn254.Generators()
-
-}
 
 func localGen(n, t int) Shares {
-	_, shares := (&SSS{Threshold: t}).Gen(n)
+	_, shares := (&SSS{Threshold: t}).Gen(n, rand.Reader)
 	return shares
 }
 
-func makePublicKey(sk *big.Int) *bn254.G2Affine {
-	var pk bn254.G2Affine
-	pk.ScalarMultiplication(&g2, sk)
-	return &pk
-}
-
-func localCreatePublicKeys(shares Shares) []bn254.G2Affine {
-	publicKeys := make([]bn254.G2Affine, len(shares))
+func localCreatePublicKeys(shares Shares) []*math.G2 {
+	publicKeys := make([]*math.G2, len(shares))
 	for i := 0; i < len(shares); i++ {
-		publicKeys[i].ScalarMultiplication(&g2, shares[i])
+		publicKeys[i] = c.GenG2.Copy().Mul(shares[i])
 	}
 
 	return publicKeys
 }
 
-func localAggregatePublicKeys(pks []bn254.G2Affine, evaluationPoints ...int64) *bn254.G2Affine {
-	var zero bn254.G2Affine
-	zero.X.SetZero()
-	zero.Y.SetZero()
+func localAggregatePublicKeys(pks []*math.G2, evaluationPoints ...int64) *math.G2 {
+	zero := c.GenG2.Copy()
+	zero.Sub(c.GenG2)
 
 	sum := zero
 
 	for i := 0; i < len(evaluationPoints); i++ {
-		var mul bn254.G2Affine
-		mul.ScalarMultiplication(&pks[evaluationPoints[i]-1], lagrangeCoefficient(evaluationPoints[i], evaluationPoints...))
-		sum.Add(&sum, &mul)
+		sum.Add(pks[evaluationPoints[i]-1].Mul(lagrangeCoefficient(evaluationPoints[i], evaluationPoints...)))
 	}
 
-	return &sum
+	return sum
 }
 
-func localAggregateSignatures(signatures []bn254.G1Affine, evaluationPoints ...int64) *bn254.G1Affine {
-	var zero bn254.G1Affine
-	zero.X.SetZero()
-	zero.Y.SetZero()
+func localAggregateSignatures(signatures []*math.G1, evaluationPoints ...int64) *math.G1 {
+	zero := c.GenG1.Copy()
+	zero.Sub(zero)
 
 	sum := zero
 
 	var signatureIndex int
 	for _, evaluationPoint := range evaluationPoints {
-		var mul bn254.G1Affine
-		mul.ScalarMultiplication(&signatures[signatureIndex], lagrangeCoefficient(evaluationPoint, evaluationPoints...))
-		sum.Add(&sum, &mul)
+		sum.Add(signatures[signatureIndex].Mul(lagrangeCoefficient(evaluationPoint, evaluationPoints...)))
 		signatureIndex++
 	}
 
-	return &sum
+	return sum
 }
 
-func localSign(sk *big.Int, digest []byte) *bn254.G1Affine {
-	g1h, err := bn254.HashToG1(digest, []byte("BLS"))
-	if err != nil {
-		panic(err)
-	}
-	return g1h.ScalarMultiplication(&g1h, sk)
+func localSign(sk *math.Zr, digest []byte) *math.G1 {
+	return c.HashToG1(digest).Mul(sk)
 }
 
-func localVerify(pk *bn254.G2Affine, digest []byte, sig *bn254.G1Affine) error {
-
-	g1h, err := bn254.HashToG1(digest, []byte("BLS"))
-	if err != nil {
-		panic(err)
-	}
-
-	left, err := bn254.Pair([]bn254.G1Affine{*sig}, []bn254.G2Affine{g2})
-	if err != nil {
-		return fmt.Errorf("cannot pair G2 with signature: %v", err)
-	}
-
-	right, err := bn254.Pair([]bn254.G1Affine{g1h}, []bn254.G2Affine{*pk})
-	if err != nil {
-		return fmt.Errorf("cannot pair public key with digest: %v", err)
-	}
-
-	if (&left).Equal(&right) {
+func localVerify(pk *math.G2, digest []byte, sig *math.G1) error {
+	left := c.Pairing(c.GenG2.Copy(), sig)
+	left = c.FExp(left)
+	right := c.Pairing(pk, c.HashToG1(digest))
+	right = c.FExp(right)
+	if left.Equals(right) {
 		return nil
 	}
 

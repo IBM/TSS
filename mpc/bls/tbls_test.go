@@ -3,29 +3,39 @@ package bls
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"math/big"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-
+	math "github.com/IBM/mathlib"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLocalSignVerify(t *testing.T) {
-	randomBytes := make([]byte, fr.Modulus().BitLen())
-	rand.Read(randomBytes)
+func TestBLS(t *testing.T) {
+	sk := c.NewZrFromInt(2)
+	pk := c.GenG2.Copy().Mul(sk)
 
-	sk := big.NewInt(0)
-	sk.SetBytes(randomBytes)
-	sk.Mod(sk, fr.Modulus())
+	h := sha256.New()
+	h.Write([]byte("the little fox jumps over the lazy dog"))
+	digest := h.Sum(nil)
+
+	signature := c.HashToG1(digest).Mul(sk)
+
+	left := c.Pairing(c.GenG2.Copy(), signature)
+	left = c.FExp(left)
+	right := c.Pairing(pk, c.HashToG1(digest))
+	right = c.FExp(right)
+
+	assert.True(t, left.Equals(right))
+}
+
+func TestLocalSignVerify(t *testing.T) {
+	sk := c.NewRandomZr(rand.Reader)
 
 	h := sha256.New()
 	h.Write([]byte("the little fox jumps over the lazy dog"))
 	digest := h.Sum(nil)
 
 	sig := localSign(sk, digest)
-	pk := makePublicKey(sk)
+	pk := c.GenG2.Copy().Mul(sk)
 	assert.NoError(t, localVerify(pk, digest, sig))
 
 	h = sha256.New()
@@ -45,13 +55,13 @@ func TestLocalThresholdBLS(t *testing.T) {
 
 	digest := sha256.Sum256([]byte("the little fox jumps over the lazy dog"))
 
-	var signatures []bn254.G1Affine
+	var signatures []*math.G1
 	for i := 0; i < len(shares); i++ {
-		signatures = append(signatures, *localSign(shares[i], digest[:]))
+		signatures = append(signatures, localSign(shares[i], digest[:]))
 	}
 
 	for i := 0; i < len(shares); i++ {
-		assert.NoError(t, localVerify(&pks[i], digest[:], &signatures[i]))
+		assert.NoError(t, localVerify(pks[i], digest[:], signatures[i]))
 	}
 
 	thresholdSignature := localAggregateSignatures(signatures[:2], 1, 2)

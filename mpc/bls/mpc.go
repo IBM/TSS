@@ -13,10 +13,9 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"fmt"
-	"math/big"
 	"sync"
 
-	"github.com/consensys/gnark-crypto/ecc/bn254"
+	math "github.com/IBM/mathlib"
 )
 
 const (
@@ -40,12 +39,12 @@ type TBLS struct {
 	sendMsg   func(msg []byte, isBroadcast bool, to uint16)
 	parties   []uint16
 	threshold int
-	sk        *big.Int
+	sk        *math.Zr
 
 	lock                sync.Mutex
 	init                bool
 	signal              sync.Cond
-	shares              map[uint16]*big.Int
+	shares              map[uint16]*math.Zr
 	commitments         map[uint16][]byte
 	publicKeysOfParties map[uint16][]byte
 
@@ -80,7 +79,7 @@ func (tbls *TBLS) SetShareData(shareData []byte) error {
 		return err
 	}
 	tbls.sd = sd
-	tbls.sk = big.NewInt(0).SetBytes(tbls.sd.Sk)
+	tbls.sk = c.NewZrFromBytes(tbls.sd.Sk)
 	return nil
 }
 
@@ -89,8 +88,7 @@ func (tbls *TBLS) Sign(_ context.Context, msgHash []byte) ([]byte, error) {
 		panic("invoke SetShareData() or KeyGen() before invoking Sign()")
 	}
 
-	sig := localSign(tbls.sk, msgHash).Bytes()
-	return sig[:], nil
+	return localSign(tbls.sk, msgHash).Bytes(), nil
 }
 
 func (tbls *TBLS) ClassifyMsg(msgBytes []byte) (uint8, bool, error) {
@@ -118,7 +116,7 @@ func (tbls *TBLS) Init(parties []uint16, threshold int, sendMsg func(msg []byte,
 	tbls.parties = parties
 	tbls.threshold = threshold
 	tbls.sendMsg = sendMsg
-	tbls.shares = make(map[uint16]*big.Int)
+	tbls.shares = make(map[uint16]*math.Zr)
 	tbls.commitments = make(map[uint16][]byte)
 	tbls.publicKeysOfParties = make(map[uint16][]byte)
 	tbls.signal = sync.Cond{L: &tbls.lock}
@@ -137,7 +135,7 @@ func (tbls *TBLS) OnMsg(msgBytes []byte, from uint16, _ bool) {
 			return
 		}
 
-		tbls.shares[from] = big.NewInt(0).SetBytes(msgBytes[1:])
+		tbls.shares[from] = c.NewZrFromBytes(msgBytes[1:])
 		tbls.signal.Signal()
 	case commitPK:
 		tbls.Logger.Infof("Got commitment from %d", from)
@@ -154,9 +152,8 @@ func (tbls *TBLS) OnMsg(msgBytes []byte, from uint16, _ bool) {
 			return
 		}
 
-		pk := &bn254.G2Affine{}
-		if _, err := pk.SetBytes(msgBytes[1:]); err != nil {
-			tbls.Logger.Warnf("Public key %s of party %d is malformed: %pk",
+		if _, err := c.NewG2FromBytes(msgBytes[1:]); err != nil {
+			tbls.Logger.Warnf("Public key %s of party %d is malformed: %v",
 				base64.StdEncoding.EncodeToString(msgBytes[1:]), from, err)
 			return
 		}
@@ -231,10 +228,8 @@ func (tbls *TBLS) KeyGen(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("got %d different threshold public keys", len(thresholdPublicKeyCombinations))
 	}
 
-	tpkBytes := thresholdPublicKey.Bytes()
-
 	tbls.sd = &StoredData{
-		ThresholdPK: tpkBytes[:],
+		ThresholdPK: thresholdPublicKey.Bytes(),
 		PublicKeys:  tbls.flattenPublicKeys(),
 		Sk:          tbls.sk.Bytes(),
 	}
@@ -260,11 +255,11 @@ func (tbls *TBLS) flattenPublicKeys() [][]byte {
 	return publicKeys
 }
 
-func (tbls *TBLS) assembleThresholdPublicKey() (map[string]*bn254.G2Affine, *bn254.G2Affine) {
-	thresholdPublicKeys := make(map[string]*bn254.G2Affine)
-	var thresholdPublicKey *bn254.G2Affine
+func (tbls *TBLS) assembleThresholdPublicKey() (map[string]*math.G2, *math.G2) {
+	thresholdPublicKeys := make(map[string]*math.G2)
+	var thresholdPublicKey *math.G2
 	chooseKoutOfN(len(tbls.parties), tbls.threshold, func(evaluationPoints []int64) {
-		var publicKeys []bn254.G2Affine
+		var publicKeys []*math.G2
 		// For each party, get its announced public key
 		for _, p := range tbls.parties {
 			rawPK, exists := tbls.publicKeysOfParties[p]
@@ -272,12 +267,11 @@ func (tbls *TBLS) assembleThresholdPublicKey() (map[string]*bn254.G2Affine, *bn2
 				panic(fmt.Sprintf("programming error: public key of party %d was not found", p))
 			}
 
-			pk := &bn254.G2Affine{}
-			_, err := pk.SetBytes(rawPK)
+			pk, err := c.NewG2FromBytes(rawPK)
 			if err != nil {
 				panic(fmt.Sprintf("programming error: public key of party %d is malformed", p))
 			}
-			publicKeys = append(publicKeys, *pk)
+			publicKeys = append(publicKeys, pk)
 		}
 
 		// Now create the threshold public key
@@ -367,14 +361,12 @@ func (tbls *TBLS) combineShares() []byte {
 		}
 
 		share := tbls.shares[party]
-		tbls.sk.Add(tbls.sk, share)
+		tbls.sk = tbls.sk.Plus(share)
 	}
 
-	pk := &bn254.G2Affine{}
-	pk = pk.ScalarMultiplication(&g2, tbls.sk)
-	pkBytes := pk.Marshal()
-	tbls.publicKeysOfParties[tbls.Party] = pkBytes
-	return pkBytes
+	pk := c.GenG2.Mul(tbls.sk).Bytes()
+	tbls.publicKeysOfParties[tbls.Party] = pk
+	return pk
 }
 
 func (tbls *TBLS) waitForShareDistribution(ctx context.Context) {
