@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/IBM/mathlib v0.0.3-0.20230822192135-eacb031f2534 // indirect
+	github.com/IBM/mathlib v0.0.3-0.20230823154559-a8c1ad01f582 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.9.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

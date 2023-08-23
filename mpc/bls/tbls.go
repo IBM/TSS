@@ -13,6 +13,17 @@ import (
 	math "github.com/IBM/mathlib"
 )
 
+var negG2 *math.G2
+
+func init() {
+	// Make negG2 be zero
+	negG2 = c.GenG2.Copy()
+	negG2.Sub(c.GenG2)
+
+	// Subtract G2 from zero to get minus G2
+	negG2.Sub(c.GenG2)
+}
+
 func localGen(n, t int) Shares {
 	_, shares := (&SSS{Threshold: t}).Gen(n, rand.Reader)
 	return shares
@@ -60,11 +71,12 @@ func localSign(sk *math.Zr, digest []byte) *math.G1 {
 }
 
 func localVerify(pk *math.G2, digest []byte, sig *math.G1) error {
-	left := c.Pairing(c.GenG2.Copy(), sig)
-	left = c.FExp(left)
-	right := c.Pairing(pk, c.HashToG1(digest))
-	right = c.FExp(right)
-	if left.Equals(right) {
+	digestProjectedOnG1 := c.HashToG1(digest)
+
+	shouldBeOne := c.Pairing2(negG2, sig, pk, digestProjectedOnG1)
+	shouldBeOne = c.FExp(shouldBeOne)
+
+	if shouldBeOne.IsUnity() {
 		return nil
 	}
 
