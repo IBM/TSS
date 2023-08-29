@@ -267,7 +267,9 @@ func (b *Box) Send(msgType uint8, topic []byte, msg []byte, to ...UniversalID) {
 	msgs := b.pendingMessages[string(topic)]
 	var messages []*IncMessage
 	if msgs != nil {
+		msgs.lock.RLock()
 		messages = msgs.messages
+		msgs.lock.RUnlock()
 	}
 
 	defer func() {
