@@ -8,6 +8,8 @@ github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6 h1:O7Iaj
 github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6/go.mod h1:52sjVGVEFhbZZCMNIggMmgiYdntup7KCguOcJ3E1xS4=
 github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b h1:ZsqrGt9U4Rs3FjsJplz7Uj82X5LsFOvlRofjttTDbQo=
 github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230829172216-b4ebe8f1ad89 h1:xks3GZVLcrVbYT5YzZsdEzMoBoMuE2GoiugKsM9yg60=
+github.com/IBM/TSS/mpc/bls v0.0.0-20230829172216-b4ebe8f1ad89/go.mod h1:o0u2Id2MBjA6hNSutNRkJuRcnXynCnGhcDfY83fu+Wc=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43 h1:Vkf7rtHx8uHx8gDfkQaCdVfc+gfrF9v6sR6xJy7RXNg=

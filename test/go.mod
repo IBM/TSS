@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230829113924-1fdc6af426a6
 	github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6
-	github.com/IBM/TSS/mpc/bls v0.0.0-20230810002641-693aa4d3ff7b
+	github.com/IBM/TSS/mpc/bls v0.0.0-20230829172216-b4ebe8f1ad89
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
 )
