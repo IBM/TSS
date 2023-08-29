@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/IBM/TSS v0.0.0-20230220083019-674e5367fe3b
+	github.com/IBM/TSS v0.0.0-20230829210007-7d14382e6520
 	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 // indirect
 	github.com/bnb-chain/tss-lib v1.3.5 // indirect
 	github.com/btcsuite/btcd v0.23.4 // indirect
