@@ -10,7 +10,6 @@ import (
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
-	"github.com/consensys/gnark-crypto/field/pool"
 )
 
 type SSS struct {
@@ -79,7 +78,7 @@ func lagrangeCoefficient(evaluatedAt int64, evaluationPoints ...int64) *big.Int 
 			continue
 		}
 
-		jScalar := pool.BigInt.Get().SetInt64(j)
+		jScalar := big.NewInt(j)
 
 		nominator := jScalar // j
 
@@ -92,8 +91,6 @@ func lagrangeCoefficient(evaluatedAt int64, evaluationPoints ...int64) *big.Int 
 		division := nominator.Mul(nominator, denominator) // j / (j-i)
 
 		prodElements = append(prodElements, division)
-
-		pool.BigInt.Put(jScalar)
 	}
 
 	if len(prodElements) == 0 {
