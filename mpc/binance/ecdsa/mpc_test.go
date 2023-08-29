@@ -124,6 +124,8 @@ func TestTSS(t *testing.T) {
 	assert.NoError(t, err)
 	t.Logf("DKG elapsed %s", time.Since(t1))
 
+	parties.init(senders(parties))
+
 	parties.setShareData(shares)
 	t.Logf("Signing")
 

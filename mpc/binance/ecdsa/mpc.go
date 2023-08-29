@@ -106,6 +106,7 @@ type party struct {
 	out       chan tss.Message
 	in        chan tss.Message
 	shareData *keygen.LocalPartySaveData
+	closeChan chan struct{}
 }
 
 func NewParty(id uint16, logger Logger) *party {
@@ -213,8 +214,8 @@ func (p *party) Init(parties []uint16, threshold int, sendMsg func(msg []byte, i
 	p.params = tss.NewParameters(elliptic.P256(), ctx, p.id, len(parties), threshold)
 	p.id.Index = p.locatePartyIndex(p.id)
 	p.sendMsg = sendMsg
-	closeChan := make(chan struct{})
-	go p.sendMessages(closeChan)
+	p.closeChan = make(chan struct{})
+	go p.sendMessages()
 }
 
 func partyIDsFromNumbers(parties []uint16) []*tss.PartyID {
@@ -232,6 +233,8 @@ func (p *party) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
 	}
 	p.logger.Debugf("Starting signing")
 	defer p.logger.Debugf("Finished signing")
+
+	defer close(p.closeChan)
 
 	end := make(chan common.SignatureData, 1)
 
@@ -294,6 +297,8 @@ func (p *party) KeyGen(ctx context.Context) ([]byte, error) {
 	p.logger.Debugf("Starting DKG")
 	defer p.logger.Debugf("Finished DKG")
 
+	defer close(p.closeChan)
+
 	preParamGenTimeout := defaultSafePrimeGenTimeout
 
 	deadline, deadlineExists := ctx.Deadline()
@@ -347,10 +352,10 @@ func (p *party) KeyGen(ctx context.Context) ([]byte, error) {
 	}
 }
 
-func (p *party) sendMessages(closeChan <-chan struct{}) {
+func (p *party) sendMessages() {
 	for {
 		select {
-		case <-closeChan:
+		case <-p.closeChan:
 			return
 		case msg := <-p.out:
 			msgBytes, routing, err := msg.WireBytes()
