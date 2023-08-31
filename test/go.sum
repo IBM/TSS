@@ -4,8 +4,12 @@ github.com/IBM/TSS v0.0.0-20230829210007-7d14382e6520 h1:yNUHLKPCUy3r8jTtHgL1XLI
 github.com/IBM/TSS v0.0.0-20230829210007-7d14382e6520/go.mod h1:wGdNkjuFEVFx96kkq8at32/6jx4mxK/v1Uuv2NXL6KE=
 github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230829113924-1fdc6af426a6 h1:fsBM5FsNnqD2dLuYy6M18dhNvTtHGeaa708vetJp8N0=
 github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230829113924-1fdc6af426a6/go.mod h1:x1sVGyOg5o3WKA2zXE3U9xFL118sv34UkR1iLko/Sxw=
+github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230831100430-0b667a5e3f1c h1:50RbYqPzlfz4b6VBSpDRTKAXr7W4iOUCYlJVG3xu8Z4=
+github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230831100430-0b667a5e3f1c/go.mod h1:x1sVGyOg5o3WKA2zXE3U9xFL118sv34UkR1iLko/Sxw=
 github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6 h1:O7IajpefjgELGC9a5ngZJsd91dvx86DWbg4vFLgBxds=
 github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6/go.mod h1:52sjVGVEFhbZZCMNIggMmgiYdntup7KCguOcJ3E1xS4=
+github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230831100430-0b667a5e3f1c h1:s/MhAuV9WWxfOE6b6hpXN+iIMBTskfH1Rt6voRElV7I=
+github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230831100430-0b667a5e3f1c/go.mod h1:52sjVGVEFhbZZCMNIggMmgiYdntup7KCguOcJ3E1xS4=
 github.com/IBM/mathlib v0.0.3-0.20230822192135-eacb031f2534 h1:czEcwFbFXczHL8gGyMb6zzL40vyVcrB2vuHR/eWGgUo=
 github.com/IBM/mathlib v0.0.3-0.20230822192135-eacb031f2534/go.mod h1:k0NBSWMYVgaZ2keDuI8DSwdIEhUNhp8XnlVmm6Xwyuk=
 github.com/aead/siphash v1.0.1/go.mod h1:Nywa3cDsYNNK3gaciGTWPwHt0wlpNV15vwmswBAUSII=
