@@ -3,15 +3,15 @@ module github.com/IBM/TSS/test
 go 1.18
 
 require (
-	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230829113924-1fdc6af426a6
-	github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230829113924-1fdc6af426a6
-	github.com/IBM/TSS/mpc/bls v0.0.0-20230829172216-b4ebe8f1ad89
+	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230831100430-0b667a5e3f1c
+	github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230831100430-0b667a5e3f1c
+	github.com/IBM/TSS/mpc/bls v0.0.0-20230831100430-0b667a5e3f1c
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
 )
 
 require (
-	github.com/IBM/mathlib v0.0.2 // indirect
+	github.com/IBM/mathlib v0.0.3-0.20230831091907-c532c4d3b65c // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.9.1 // indirect
 	github.com/hyperledger/fabric-amcl v0.0.0-20230602173724-9e02669dceb2 // indirect
