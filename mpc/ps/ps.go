@@ -47,8 +47,8 @@ type SK struct {
 }
 
 type PK struct {
-	X  *math.G2
-	Ys []*math.G2
+	X *math.G2
+	Y []*math.G2
 }
 
 func LocalKeyGen(pp PP) (SK, PK) {
@@ -63,10 +63,11 @@ func LocalKeyGen(pp PP) (SK, PK) {
 
 	pk := PK{
 		X: pp.g2.Mul(sk.x),
+		Y: make([]*math.G2, len(sk.ys)),
 	}
 
 	for i := 0; i < len(sk.ys); i++ {
-		pk.Ys[i] = pp.g2.Mul(sk.ys[i])
+		pk.Y[i] = pp.g2.Mul(sk.ys[i])
 	}
 
 	return sk, pk
@@ -249,6 +250,103 @@ func (ξ BlindCorrectFormProof) Verify(c *math.Curve, n int, a, b []*math.G1, cm
 	return nil
 }
 
+type PoKofSignature struct {
+	x []*math.Zr
+	y *math.Zr
+	Γ *math.G2
+	Φ *math.G1
+}
+
+func (ψ PoKofSignature) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) error {
+
+	digest := randomOracleForPoKofSignature(ψ.Γ, ψ.Φ, ν, hε, g2, X, κ, Y)
+	e := c.HashToZr(digest)
+
+	if err := ψ.checkcommitmentForm(c, e, g2, X, κ, Y); err != nil {
+		return err
+	}
+
+	left := hε.Copy().Mul(ψ.y)
+	right := ν.Mul(e)
+	right.Add(ψ.Φ)
+
+	if !left.Equals(right) {
+		return fmt.Errorf("hε^y != ν^e*Φ")
+	}
+
+	return nil
+}
+
+func (ψ PoKofSignature) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math.G2, X *math.G2, κ *math.G2, Y []*math.G2) error {
+	left := g2.Mul(ψ.y)
+	for i := 0; i < len(ψ.x); i++ {
+		left.Add(Y[i].Mul(ψ.x[i]))
+	}
+
+	right := ψ.Γ.Copy()
+	κ = κ.Copy()
+	κ.Add(neg(c, X))
+	κ = κ.Mul(e)
+	right.Add(κ)
+
+	if !left.Equals(right) {
+		return fmt.Errorf("message was not correctly committed to")
+	}
+
+	return nil
+}
+
+func randomOracleForPoKofSignature(Γ *math.G2, Φ *math.G1, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) []byte {
+	hash := sha256.New()
+
+	for i := 0; i < len(Y); i++ {
+		hash.Write(Y[i].Bytes())
+	}
+	hash.Write(X.Bytes())
+	hash.Write(g2.Bytes())
+
+	hash.Write(Γ.Bytes())
+	hash.Write(Φ.Bytes())
+	hash.Write(ν.Bytes())
+	hash.Write(hε.Bytes())
+	hash.Write(κ.Bytes())
+
+	return hash.Sum(nil)
+}
+
+func proveKnowledgeOfSignature(c *math.Curve, m []*math.Zr, δ *math.Zr, ν, hε *math.G1, κ, g2, X *math.G2, Y []*math.G2) PoKofSignature {
+	μ := c.NewRandomZr(rand.Reader)
+	n := len(m)
+	γ := make([]*math.Zr, n)
+	for i := 0; i < n; i++ {
+		γ[i] = c.NewRandomZr(rand.Reader)
+	}
+
+	Γ := g2.Mul(μ)
+	for i := 0; i < n; i++ {
+		Γ.Add(Y[i].Mul(γ[i]))
+	}
+
+	Φ := hε.Mul(μ)
+
+	e := c.HashToZr(randomOracleForPoKofSignature(Γ, Φ, ν, hε, g2, X, κ, Y))
+
+	x := make([]*math.Zr, len(m))
+
+	for i := 0; i < len(m); i++ {
+		x[i] = γ[i].Plus(e.Mul(m[i]))
+	}
+
+	y := μ.Plus(e.Mul(δ))
+
+	return PoKofSignature{
+		x: x,
+		y: y,
+		Γ: Γ,
+		Φ: Φ,
+	}
+}
+
 func hash(in []byte) []byte {
 	h := sha256.New()
 	h.Write(in)
@@ -284,12 +382,10 @@ func psuedoRandomG2(c *math.Curve) *math.G2 {
 	return g
 }
 
-/*
-func neg(in *math.G1) *math.G1 {
-	zero := c.GenG1.Copy()
+func neg(c *math.Curve, in *math.G2) *math.G2 {
+	zero := c.GenG2.Copy()
 	zero.Sub(zero)
 
 	zero.Sub(in)
 	return zero
 }
-*/
