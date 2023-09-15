@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+
 	math "github.com/IBM/mathlib"
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
@@ -22,16 +23,17 @@ import (
 // with a slight deviation where we add an extra message m' as in section 4.2 in "Reassessing Security of Randomizable Signatures" - https://eprint.iacr.org/2017/1197.pdf
 
 type PP struct {
-	c  *math.Curve
-	g2 *math.G2
-	g0 *math.G1
-	g  *math.G1
-	gs []*math.G1
-	n  int // |m|+1
+	c         *math.Curve
+	g2        *math.G2
+	g2Inverse *math.G2
+	g0        *math.G1
+	g         *math.G1
+	gs        []*math.G1
+	n         int // |m|+1
 }
 
 func Setup(c *math.Curve, messageLength int) PP {
-	return PP{
+	pp := PP{
 		n:  messageLength + 1,
 		c:  c,
 		g2: psuedoRandomG2(c),
@@ -39,6 +41,10 @@ func Setup(c *math.Curve, messageLength int) PP {
 		g:  psuedoRandomG1s(c, 1, "G")[0],
 		gs: psuedoRandomG1s(c, messageLength+1, "Gs"),
 	}
+
+	pp.g2Inverse = neg(pp.c, pp.g2)
+
+	return pp
 }
 
 type SK struct {
@@ -172,18 +178,14 @@ func UnBlind(pp *PP, pk PK, σ *Signature, h *math.G1, msg []*math.Zr, z *math.Z
 	hPrime := σ.B.Copy()
 	hPrime.Add(σ.A.Mul(negZ))
 
-	right := pp.c.Pairing(pp.g2, hPrime)
-	right = pp.c.FExp(right)
-
 	E := pk.X.Copy()
 	for i := 0; i < len(msg); i++ {
 		E.Add(pk.Y[i].Mul(msg[i]))
 	}
 
-	left := pp.c.Pairing(E, h)
-	left = pp.c.FExp(left)
-
-	if !right.Equals(left) {
+	shouldBeOne := pp.c.Pairing2(pp.g2Inverse, hPrime, E, h)
+	shouldBeOne = pp.c.FExp(shouldBeOne)
+	if !shouldBeOne.IsUnity() {
 		return nil, fmt.Errorf("unblinded signature is incorrect")
 	}
 
@@ -210,16 +212,12 @@ func (sigPoK SigPoK) Verify(pp *PP, pk PK) error {
 		return fmt.Errorf("h^ε is 0")
 	}
 
-	left := pp.c.Pairing(sigPoK.κ, sigPoK.hε)
-	left = pp.c.FExp(left)
-
 	hPrimeεν := sigPoK.hPrimeε.Copy()
 	hPrimeεν.Add(sigPoK.ν)
 
-	right := pp.c.Pairing(pp.g2, hPrimeεν)
-	right = pp.c.FExp(right)
-
-	if !left.Equals(right) {
+	shouldBeOne := pp.c.Pairing2(sigPoK.κ, sigPoK.hε, pp.g2Inverse, hPrimeεν)
+	shouldBeOne = pp.c.FExp(shouldBeOne)
+	if !shouldBeOne.IsUnity() {
 		return fmt.Errorf("pairing condition unsatisfied")
 	}
 
