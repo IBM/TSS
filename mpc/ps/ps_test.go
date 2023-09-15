@@ -70,7 +70,34 @@ func TestProveKnowledgeOfSignature(t *testing.T) {
 	}
 	κ.Add(pp.g2.Mul(δ))
 
-	ψ := proveKnowledgeOfSignature(c, msg, δ, ν, hε, κ, pp.g2, X, Y)
+	ψ := proveProofOfKnowledgeOfSignatureIsCorrectlyFormed(c, msg, δ, ν, hε, κ, pp.g2, X, Y)
 	err := ψ.Verify(c, ν, hε, pp.g2, X, κ, Y)
+	assert.NoError(t, err)
+}
+
+func TestBlindSignaturePoK(t *testing.T) {
+	c := math.Curves[1]
+
+	msgLen := 10
+
+	pp := Setup(c, msgLen)
+
+	msg := make([]*math.Zr, msgLen)
+	for i := 0; i < msgLen; i++ {
+		msg[i] = c.NewRandomZr(rand.Reader)
+	}
+
+	σ, secret := Blind(&pp, c, msg)
+
+	sk, pk := LocalKeyGen(pp)
+
+	sig, err := SignBlindSignature(&pp, σ, sk)
+	assert.NoError(t, err)
+
+	hPrime, err := UnBlind(&pp, pk, sig, secret.h, secret.msg, secret.z)
+	assert.NoError(t, err)
+
+	sigPoK := PoKofSig(&pp, pk, secret.h, hPrime, secret.msg)
+	err = sigPoK.Verify(&pp, pk)
 	assert.NoError(t, err)
 }

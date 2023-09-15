@@ -53,7 +53,7 @@ type PK struct {
 
 func LocalKeyGen(pp PP) (SK, PK) {
 	sk := SK{
-		ys: make([]*math.Zr, pp.n+1),
+		ys: make([]*math.Zr, pp.n),
 	}
 
 	sk.x = pp.c.NewRandomZr(rand.Reader)
@@ -73,7 +73,21 @@ func LocalKeyGen(pp PP) (SK, PK) {
 	return sk, pk
 }
 
-func Blind(pp *PP, c *math.Curve, m []*math.Zr) {
+type BlindSignature struct {
+	ξ      BlindCorrectFormProof
+	cm     *math.G1
+	mPrime *math.Zr
+	u      *math.G1
+	a, b   []*math.G1
+}
+
+type UnblindingSecret struct {
+	msg []*math.Zr
+	z   *math.Zr
+	h   *math.G1
+}
+
+func Blind(pp *PP, c *math.Curve, m []*math.Zr) (BlindSignature, UnblindingSecret) {
 	if len(m)+1 != pp.n {
 		panic(fmt.Sprintf("expected message to be of length %d but was of length %d", pp.n-1, len(m)))
 	}
@@ -88,10 +102,12 @@ func Blind(pp *PP, c *math.Curve, m []*math.Zr) {
 	// commitment to 'm'
 	cm := commit(pp, rcm, m)
 
+	oldCM := cm.Copy()
+
 	mPrime := pp.c.HashToZr(hash(cm.Bytes()))
 
 	// Add m' to commitment
-	cm.Add(pp.gs[len(m)].Mul(mPrime))
+	cm.Add(pp.gs[len(pp.gs)-1].Mul(mPrime))
 
 	// Update 'h' with final commitment
 	h := pp.c.HashToG1(cm.Bytes())
@@ -101,12 +117,136 @@ func Blind(pp *PP, c *math.Curve, m []*math.Zr) {
 	msg[len(msg)-1] = mPrime
 	a, b, r := encrypt(pp, c, msg, h, u)
 
-	_ = a
+	ξ := proveBlindingIsWellFormed(c, msg, r, a, b, rcm, pp.g, pp.g0, h, u, cm, pp.gs)
 
-	// Last element of b vector is encryption of m'
-	lastBi := h.Mul(mPrime)
-	lastBi.Add(u.Mul(r[len(r)-1]))
-	b[len(b)-1] = lastBi
+	return BlindSignature{
+			mPrime: mPrime,
+			cm:     oldCM,
+			u:      u,
+			ξ:      ξ,
+			a:      a,
+			b:      b,
+		}, UnblindingSecret{
+			h:   h,
+			z:   z,
+			msg: msg,
+		}
+}
+
+type Signature struct {
+	A, B *math.G1
+}
+
+func SignBlindSignature(pp *PP, σ BlindSignature, sk SK) (*Signature, error) {
+	mPrime := pp.c.HashToZr(hash(σ.cm.Bytes()))
+	cm := σ.cm.Copy()
+	cm.Add(pp.gs[len(pp.gs)-1].Mul(mPrime))
+
+	h := pp.c.HashToG1(cm.Bytes())
+
+	// Verify blind signature is well formed
+	err := σ.ξ.Verify(pp.c, len(pp.gs), σ.a, σ.b, cm, pp.g, pp.g0, h, σ.u, pp.gs)
+	if err != nil {
+		return nil, err
+	}
+
+	// initialize a to be zero
+	a := pp.c.GenG1.Copy()
+	a.Sub(a)
+
+	for i := 0; i < len(pp.gs); i++ {
+		a.Add(σ.a[i].Mul(sk.ys[i]))
+	}
+
+	b := h.Mul(sk.x)
+
+	for i := 0; i < len(pp.gs); i++ {
+		b.Add(σ.b[i].Mul(sk.ys[i]))
+	}
+
+	return &Signature{A: a, B: b}, nil
+}
+
+func UnBlind(pp *PP, pk PK, σ *Signature, h *math.G1, msg []*math.Zr, z *math.Zr) (*math.G1, error) {
+	negZ := pp.c.ModNeg(z, pp.c.GroupOrder)
+	hPrime := σ.B.Copy()
+	hPrime.Add(σ.A.Mul(negZ))
+
+	right := pp.c.Pairing(pp.g2, hPrime)
+	right = pp.c.FExp(right)
+
+	E := pk.X.Copy()
+	for i := 0; i < len(msg); i++ {
+		E.Add(pk.Y[i].Mul(msg[i]))
+	}
+
+	left := pp.c.Pairing(E, h)
+	left = pp.c.FExp(left)
+
+	if !right.Equals(left) {
+		return nil, fmt.Errorf("unblinded signature is incorrect")
+	}
+
+	return hPrime, nil
+}
+
+type SigPoK struct {
+	ψ       PoKofSignaturePoCorrectForm
+	hε      *math.G1
+	hPrimeε *math.G1
+	ν       *math.G1
+	κ       *math.G2
+}
+
+func (sigPoK SigPoK) Verify(pp *PP, pk PK) error {
+	if err := sigPoK.ψ.Verify(pp.c, sigPoK.ν, sigPoK.hε, pp.g2, pk.X, sigPoK.κ, pk.Y); err != nil {
+		return fmt.Errorf("pairing argument is not well formed: %v", err)
+	}
+
+	zero := pp.c.GenG1.Copy()
+	zero.Sub(zero)
+
+	if zero.Equals(sigPoK.hε) {
+		return fmt.Errorf("h^ε is 0")
+	}
+
+	left := pp.c.Pairing(sigPoK.κ, sigPoK.hε)
+	left = pp.c.FExp(left)
+
+	hPrimeεν := sigPoK.hPrimeε.Copy()
+	hPrimeεν.Add(sigPoK.ν)
+
+	right := pp.c.Pairing(pp.g2, hPrimeεν)
+	right = pp.c.FExp(right)
+
+	if !left.Equals(right) {
+		return fmt.Errorf("pairing condition unsatisfied")
+	}
+
+	return nil
+}
+
+func PoKofSig(pp *PP, pk PK, h, hPrime *math.G1, msg []*math.Zr) SigPoK {
+	ε, δ := pp.c.NewRandomZr(rand.Reader), pp.c.NewRandomZr(rand.Reader)
+	κ := pk.X.Copy()
+	for i := 0; i < len(pk.Y); i++ {
+		κ.Add(pk.Y[i].Mul(msg[i]))
+	}
+	κ.Add(pp.g2.Mul(δ))
+
+	hε := h.Mul(ε)
+	ν := hε.Mul(δ)
+	hPrimeε := hPrime.Mul(ε)
+
+	ψ := proveProofOfKnowledgeOfSignatureIsCorrectlyFormed(pp.c, msg, δ, ν, hε, κ, pp.g2, pk.X, pk.Y)
+
+	return SigPoK{
+		hPrimeε: hPrimeε,
+		κ:       κ,
+		hε:      hε,
+		ν:       ν,
+		ψ:       ψ,
+	}
 }
 
 func commit(pp *PP, rcm *math.Zr, m []*math.Zr) *math.G1 {
@@ -250,14 +390,14 @@ func (ξ BlindCorrectFormProof) Verify(c *math.Curve, n int, a, b []*math.G1, cm
 	return nil
 }
 
-type PoKofSignature struct {
+type PoKofSignaturePoCorrectForm struct {
 	x []*math.Zr
 	y *math.Zr
 	Γ *math.G2
 	Φ *math.G1
 }
 
-func (ψ PoKofSignature) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) error {
+func (ψ PoKofSignaturePoCorrectForm) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) error {
 
 	digest := randomOracleForPoKofSignature(ψ.Γ, ψ.Φ, ν, hε, g2, X, κ, Y)
 	e := c.HashToZr(digest)
@@ -271,13 +411,13 @@ func (ψ PoKofSignature) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math
 	right.Add(ψ.Φ)
 
 	if !left.Equals(right) {
-		return fmt.Errorf("hε^y != ν^e*Φ")
+		return fmt.Errorf("ν is not well formed")
 	}
 
 	return nil
 }
 
-func (ψ PoKofSignature) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math.G2, X *math.G2, κ *math.G2, Y []*math.G2) error {
+func (ψ PoKofSignaturePoCorrectForm) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math.G2, X *math.G2, κ *math.G2, Y []*math.G2) error {
 	left := g2.Mul(ψ.y)
 	for i := 0; i < len(ψ.x); i++ {
 		left.Add(Y[i].Mul(ψ.x[i]))
@@ -290,7 +430,7 @@ func (ψ PoKofSignature) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math
 	right.Add(κ)
 
 	if !left.Equals(right) {
-		return fmt.Errorf("message was not correctly committed to")
+		return fmt.Errorf("κ is not well formed")
 	}
 
 	return nil
@@ -314,7 +454,7 @@ func randomOracleForPoKofSignature(Γ *math.G2, Φ *math.G1, ν, hε *math.G1, g
 	return hash.Sum(nil)
 }
 
-func proveKnowledgeOfSignature(c *math.Curve, m []*math.Zr, δ *math.Zr, ν, hε *math.G1, κ, g2, X *math.G2, Y []*math.G2) PoKofSignature {
+func proveProofOfKnowledgeOfSignatureIsCorrectlyFormed(c *math.Curve, m []*math.Zr, δ *math.Zr, ν, hε *math.G1, κ, g2, X *math.G2, Y []*math.G2) PoKofSignaturePoCorrectForm {
 	μ := c.NewRandomZr(rand.Reader)
 	n := len(m)
 	γ := make([]*math.Zr, n)
@@ -339,7 +479,7 @@ func proveKnowledgeOfSignature(c *math.Curve, m []*math.Zr, δ *math.Zr, ν, hε
 
 	y := μ.Plus(e.Mul(δ))
 
-	return PoKofSignature{
+	return PoKofSignaturePoCorrectForm{
 		x: x,
 		y: y,
 		Γ: Γ,
