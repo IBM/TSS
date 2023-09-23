@@ -9,6 +9,7 @@ package ps
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/binary"
 	"fmt"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
-// This is an implementation of a threshold blind signature scheme and zero knowledge proof of knowledge of such signature.
+// This is an implementation of a blind signature scheme and zero knowledge proof of knowledge of such signature.
 // The notation follows appendix C from "Privacy-preserving auditable token payments in a permissioned blockchain system" - https://eprint.iacr.org/2019/1058.pdf
 // but the actual algorithm closely follows Appendix B from
 // the paper: "Coconut: Threshold Issuance Selective Disclosure  Credentials with Applications to Distributed Ledgers" - https://arxiv.org/pdf/1802.07344.pdf
@@ -30,6 +31,41 @@ type PP struct {
 	g         *math.G1
 	gs        []*math.G1
 	n         int // |m|+1
+}
+
+func (pp *PP) Bytes() []byte {
+	var xys XYs
+	for i := 0; i < len(pp.gs); i++ {
+		xys.Ys = append(xys.Ys, pp.gs[i].Bytes())
+	}
+
+	gs, err := asn1.Marshal(xys)
+	if err != nil {
+		panic(err)
+	}
+
+	nBuff := make([]byte, 2)
+	binary.BigEndian.PutUint16(nBuff, uint16(pp.n))
+
+	bytes := [][]byte{
+		pp.g2.Bytes(),
+		pp.g0.Bytes(),
+		pp.g.Bytes(),
+		gs,
+		nBuff,
+	}
+
+	rpp := RawPP{Data: bytes}
+	result, err := asn1.Marshal(rpp)
+	if err != nil {
+		panic(err)
+	}
+
+	return result
+}
+
+type RawPP struct {
+	Data [][]byte
 }
 
 func Setup(c *math.Curve, messageLength int) PP {
@@ -52,9 +88,67 @@ type SK struct {
 	ys []*math.Zr
 }
 
+func (sk *SK) Bytes() []byte {
+	xys := XYs{
+		X:  sk.x.Bytes(),
+		Ys: make([][]byte, len(sk.ys)),
+	}
+
+	for i := 0; i < len(sk.ys); i++ {
+		xys.Ys[i] = sk.ys[i].Bytes()
+	}
+
+	bytes, err := asn1.Marshal(xys)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+}
+
 type PK struct {
 	X *math.G2
 	Y []*math.G2
+}
+
+type PKs []PK
+
+func (pks PKs) XPoints() []*math.G2 {
+	res := make([]*math.G2, len(pks))
+	for i := 0; i < len(pks); i++ {
+		res[i] = pks[i].X
+	}
+
+	return res
+}
+
+func (pks PKs) YPoints(index int) []*math.G2 {
+	res := make([]*math.G2, len(pks))
+	for i := 0; i < len(pks); i++ {
+		res[i] = pks[i].Y[index]
+	}
+
+	return res
+}
+
+func (pk *PK) Bytes() []byte {
+	var xys XYs
+	xys.X = pk.X.Bytes()
+	xys.Ys = make([][]byte, len(pk.Y))
+	for i := 0; i < len(xys.Ys); i++ {
+		xys.Ys[i] = pk.Y[i].Bytes()
+	}
+
+	bytes, err := asn1.Marshal(xys)
+	if err != nil {
+		panic(err)
+	}
+	return bytes
+}
+
+type XYs struct {
+	X  []byte
+	Ys [][]byte
 }
 
 func LocalKeyGen(pp PP) (SK, PK) {
