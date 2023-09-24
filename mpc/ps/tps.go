@@ -15,8 +15,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	math "github.com/IBM/mathlib"
 	"sync"
+
+	math "github.com/IBM/mathlib"
 )
 
 const (

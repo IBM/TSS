@@ -9,10 +9,10 @@ package ps
 import (
 	"context"
 	"fmt"
-	math "github.com/IBM/mathlib"
 	"sync"
 	"testing"
 
+	math "github.com/IBM/mathlib"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )

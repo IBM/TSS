@@ -301,28 +301,6 @@ type UnblindingSecret struct {
 	h   *math.G1
 }
 
-/*
-
-func (us *UnblindingSecret) Bytes() []byte {
-	rus := RawUnblindingSecret{
-		Z: us.z.Bytes(),
-		H: us.h.Bytes(),
-		Msg: make([][]byte, len(us.msg)),
-	}
-
-	for i := 0; i < len(us.msg); i++ {
-		rus.Msg[i] = us.msg[i].Bytes()
-	}
-
-	bytes, err := asn1.Marshal(rus)
-	if err != nil {
-		panic(err)
-	}
-
-	return bytes
-
-}*/
-
 func Blind(pp *PP, c *math.Curve, m []*math.Zr) (BlindSignature, UnblindingSecret) {
 	if len(m)+1 != pp.n {
 		panic(fmt.Sprintf("expected message to be of length %d but was of length %d", pp.n-1, len(m)))
