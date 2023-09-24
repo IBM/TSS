@@ -141,10 +141,6 @@ func TestTPS(t *testing.T) {
 	proofs := make([][]byte, 3)
 
 	t.Run("Prove Knowledge Of Signature", func(t *testing.T) {
-		var v Verifier
-		err := v.Init(math.Curves[1], len(msg), thresholdPK)
-		assert.NoError(t, err)
-
 		π := prover.ProveKnowledgeOfSignature(unblindingSecret, []uint16{1, 2}, []SignatureWitness{signatureWitnesses[0], signatureWitnesses[1]})
 		proofs[0] = π.Bytes()
 
