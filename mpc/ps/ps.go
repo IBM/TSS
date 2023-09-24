@@ -88,6 +88,22 @@ type SK struct {
 	ys []*math.Zr
 }
 
+func (sk *SK) fromBytes(c *math.Curve, bytes []byte) error {
+	var xys XYs
+	if _, err := asn1.Unmarshal(bytes, &xys); err != nil {
+		return fmt.Errorf("private key is malformed: %v", err)
+	}
+
+	sk.x = c.NewZrFromBytes(xys.X)
+	sk.ys = make([]*math.Zr, 0, len(xys.Ys))
+
+	for i := 0; i < len(xys.Ys); i++ {
+		sk.ys = append(sk.ys, c.NewZrFromBytes(xys.Ys[i]))
+	}
+
+	return nil
+}
+
 func (sk *SK) Bytes() []byte {
 	xys := XYs{
 		X:  sk.x.Bytes(),
@@ -146,6 +162,32 @@ func (pk *PK) Bytes() []byte {
 	return bytes
 }
 
+func (pk *PK) fromBytes(c *math.Curve, bytes []byte) error {
+	var xys XYs
+	if _, err := asn1.Unmarshal(bytes, &xys); err != nil {
+		return err
+	}
+
+	var err error
+	pk.X, err = c.NewG2FromBytes(xys.X)
+	if err != nil {
+		return err
+	}
+
+	pk.Y = make([]*math.G2, 0, len(xys.Ys))
+
+	for i := 0; i < len(xys.Ys); i++ {
+		Y, err := c.NewG2FromBytes(xys.Ys[i])
+		if err != nil {
+			return err
+		}
+
+		pk.Y = append(pk.Y, Y)
+	}
+
+	return nil
+}
+
 type XYs struct {
 	X  []byte
 	Ys [][]byte
@@ -181,11 +223,105 @@ type BlindSignature struct {
 	a, b   []*math.G1
 }
 
+type RawBlindSignature struct {
+	CorrectFormProof []byte
+	CM               []byte
+	MPrime           []byte
+	U                []byte
+	A, B             [][]byte
+}
+
+func (bs *BlindSignature) fromBytes(bytes []byte, c *math.Curve) error {
+	var rbs RawBlindSignature
+	if _, err := asn1.Unmarshal(bytes, &rbs); err != nil {
+		return fmt.Errorf("blind signature bytes are malformed: %v", err)
+	}
+
+	bs.ξ = BlindCorrectFormProof{}
+	if err := bs.ξ.fromBytes(rbs.CorrectFormProof, c); err != nil {
+		return fmt.Errorf("correct form proof invalid: %v", err)
+	}
+
+	var err error
+	bs.cm, err = c.NewG1FromBytes(rbs.CM)
+	if err != nil {
+		return err
+	}
+
+	bs.u, err = c.NewG1FromBytes(rbs.U)
+	if err != nil {
+		return err
+	}
+
+	bs.mPrime = c.NewZrFromBytes(rbs.MPrime)
+
+	bs.a = make([]*math.G1, len(rbs.A))
+	for i := 0; i < len(rbs.A); i++ {
+		bs.a[i], err = c.NewG1FromBytes(rbs.A[i])
+	}
+
+	bs.b = make([]*math.G1, len(rbs.B))
+	for i := 0; i < len(rbs.B); i++ {
+		bs.b[i], err = c.NewG1FromBytes(rbs.B[i])
+	}
+
+	return nil
+
+}
+
+func (bs *BlindSignature) Bytes() []byte {
+	rbs := RawBlindSignature{
+		CorrectFormProof: bs.ξ.Bytes(),
+		U:                bs.u.Bytes(),
+		CM:               bs.cm.Bytes(),
+		MPrime:           bs.mPrime.Bytes(),
+		A:                make([][]byte, len(bs.a)),
+		B:                make([][]byte, len(bs.b)),
+	}
+
+	for i := 0; i < len(bs.a); i++ {
+		rbs.A[i] = bs.a[i].Bytes()
+	}
+
+	for i := 0; i < len(bs.b); i++ {
+		rbs.B[i] = bs.b[i].Bytes()
+	}
+
+	bytes, err := asn1.Marshal(rbs)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+}
+
 type UnblindingSecret struct {
 	msg []*math.Zr
 	z   *math.Zr
 	h   *math.G1
 }
+
+/*
+
+func (us *UnblindingSecret) Bytes() []byte {
+	rus := RawUnblindingSecret{
+		Z: us.z.Bytes(),
+		H: us.h.Bytes(),
+		Msg: make([][]byte, len(us.msg)),
+	}
+
+	for i := 0; i < len(us.msg); i++ {
+		rus.Msg[i] = us.msg[i].Bytes()
+	}
+
+	bytes, err := asn1.Marshal(rus)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+
+}*/
 
 func Blind(pp *PP, c *math.Curve, m []*math.Zr) (BlindSignature, UnblindingSecret) {
 	if len(m)+1 != pp.n {
@@ -234,7 +370,24 @@ func Blind(pp *PP, c *math.Curve, m []*math.Zr) (BlindSignature, UnblindingSecre
 }
 
 type Signature struct {
-	A, B *math.G1
+	a, b *math.G1
+}
+
+type RawSignature struct {
+	A, B []byte
+}
+
+func (sig *Signature) Bytes() []byte {
+	bytes, err := asn1.Marshal(RawSignature{
+		A: sig.a.Bytes(),
+		B: sig.b.Bytes(),
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
 }
 
 func SignBlindSignature(pp *PP, σ BlindSignature, sk SK) (*Signature, error) {
@@ -264,13 +417,13 @@ func SignBlindSignature(pp *PP, σ BlindSignature, sk SK) (*Signature, error) {
 		b.Add(σ.b[i].Mul(sk.ys[i]))
 	}
 
-	return &Signature{A: a, B: b}, nil
+	return &Signature{a: a, b: b}, nil
 }
 
 func UnBlind(pp *PP, pk PK, σ *Signature, h *math.G1, msg []*math.Zr, z *math.Zr) (*math.G1, error) {
 	negZ := pp.c.ModNeg(z, pp.c.GroupOrder)
-	hPrime := σ.B.Copy()
-	hPrime.Add(σ.A.Mul(negZ))
+	hPrime := σ.b.Copy()
+	hPrime.Add(σ.a.Mul(negZ))
 
 	E := pk.X.Copy()
 	for i := 0; i < len(msg); i++ {
@@ -294,7 +447,58 @@ type SigPoK struct {
 	κ       *math.G2
 }
 
-func (sigPoK SigPoK) Verify(pp *PP, pk PK) error {
+type RawSigPok struct {
+	Data [][]byte
+}
+
+func (sigPoK *SigPoK) fromBytes(c *math.Curve, bytes []byte) error {
+	var rspok RawSigPok
+	if _, err := asn1.Unmarshal(bytes, &rspok); err != nil {
+		return fmt.Errorf("malformed proof of signature knowledge: %v", err)
+	}
+
+	sigPoK.ψ = PoKofSignaturePoCorrectForm{}
+	if err := sigPoK.ψ.fromBytes(c, rspok.Data[0]); err != nil {
+		return err
+	}
+
+	var err error
+	sigPoK.hε, err = c.NewG1FromBytes(rspok.Data[1])
+	if err != nil {
+		return err
+	}
+
+	sigPoK.hPrimeε, err = c.NewG1FromBytes(rspok.Data[2])
+	if err != nil {
+		return err
+	}
+
+	sigPoK.ν, err = c.NewG1FromBytes(rspok.Data[3])
+	if err != nil {
+		return err
+	}
+
+	sigPoK.κ, err = c.NewG2FromBytes(rspok.Data[4])
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (sigPoK *SigPoK) Bytes() []byte {
+	var rsp RawSigPok
+	rsp.Data = [][]byte{sigPoK.ψ.Bytes(), sigPoK.hε.Bytes(), sigPoK.hPrimeε.Bytes(), sigPoK.ν.Bytes(), sigPoK.κ.Bytes()}
+
+	bytes, err := asn1.Marshal(rsp)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+}
+
+func (sigPoK *SigPoK) Verify(pp *PP, pk PK) error {
 	if err := sigPoK.ψ.Verify(pp.c, sigPoK.ν, sigPoK.hε, pp.g2, pk.X, sigPoK.κ, pk.Y); err != nil {
 		return fmt.Errorf("pairing argument is not well formed: %v", err)
 	}
@@ -439,6 +643,13 @@ func randomOracleForBlindingProof(n int, d []*math.G1, f []*math.G1, s *math.G1,
 	return digest
 }
 
+type RawBlindCorrectProof struct {
+	X, Y [][]byte
+	S    []byte
+	Z    []byte
+	D, F [][]byte
+}
+
 type BlindCorrectFormProof struct {
 	x, y []*math.Zr
 	s    *math.G1
@@ -446,7 +657,88 @@ type BlindCorrectFormProof struct {
 	d, f []*math.G1
 }
 
-func (ξ BlindCorrectFormProof) Verify(c *math.Curve, n int, a, b []*math.G1, cm *math.G1, g *math.G1, g0 *math.G1, h *math.G1, u *math.G1, gs []*math.G1) error {
+func (ξ *BlindCorrectFormProof) fromBytes(bytes []byte, c *math.Curve) error {
+	var rbcp RawBlindCorrectProof
+	if _, err := asn1.Unmarshal(bytes, &rbcp); err != nil {
+		return fmt.Errorf("blind correct form proof is malformed: %v", err)
+	}
+
+	var err error
+
+	ξ.s, err = c.NewG1FromBytes(rbcp.S)
+	if err != nil {
+		return err
+	}
+
+	ξ.z = c.NewZrFromBytes(rbcp.Z)
+
+	for i := 0; i < len(rbcp.X); i++ {
+		ξ.x = append(ξ.x, c.NewZrFromBytes(rbcp.X[i]))
+	}
+
+	for i := 0; i < len(rbcp.Y); i++ {
+		ξ.y = append(ξ.y, c.NewZrFromBytes(rbcp.Y[i]))
+	}
+
+	for i := 0; i < len(rbcp.D); i++ {
+		d, err := c.NewG1FromBytes(rbcp.D[i])
+		if err != nil {
+			return err
+		}
+		ξ.d = append(ξ.d, d)
+	}
+
+	for i := 0; i < len(rbcp.F); i++ {
+		f, err := c.NewG1FromBytes(rbcp.F[i])
+		if err != nil {
+			return err
+		}
+		ξ.f = append(ξ.f, f)
+	}
+
+	return nil
+}
+
+func (ξ *BlindCorrectFormProof) Bytes() []byte {
+	rbcp := RawBlindCorrectProof{
+		S: ξ.s.Bytes(),
+		Z: ξ.z.Bytes(),
+	}
+
+	n := len(ξ.d)
+	if len(ξ.f) != n {
+		panic(fmt.Sprintf("blind correct form proof is malformed: |d|=%d but |f|=%d", n, len(ξ.f)))
+	}
+
+	if len(ξ.x) != n {
+		panic(fmt.Sprintf("blind correct form proof is malformed: |d|=%d but |x|=%d", n, len(ξ.x)))
+	}
+
+	if len(ξ.f) != n {
+		panic(fmt.Sprintf("blind correct form proof is malformed: |d|=%d but |y|=%d", n, len(ξ.y)))
+	}
+
+	rbcp.D = make([][]byte, n)
+	rbcp.F = make([][]byte, n)
+	rbcp.X = make([][]byte, n)
+	rbcp.Y = make([][]byte, n)
+
+	for i := 0; i < n; i++ {
+		rbcp.X[i] = ξ.x[i].Bytes()
+		rbcp.Y[i] = ξ.y[i].Bytes()
+		rbcp.D[i] = ξ.d[i].Bytes()
+		rbcp.F[i] = ξ.f[i].Bytes()
+	}
+
+	bytes, err := asn1.Marshal(rbcp)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+}
+
+func (ξ *BlindCorrectFormProof) Verify(c *math.Curve, n int, a, b []*math.G1, cm *math.G1, g *math.G1, g0 *math.G1, h *math.G1, u *math.G1, gs []*math.G1) error {
 	digest := randomOracleForBlindingProof(n, ξ.d, ξ.f, ξ.s, a, b, cm, g, g0, h, u, gs)
 	e := c.HashToZr(digest)
 
@@ -489,7 +781,58 @@ type PoKofSignaturePoCorrectForm struct {
 	Φ *math.G1
 }
 
-func (ψ PoKofSignaturePoCorrectForm) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) error {
+type RawPoKofSignaturePoCorrectForm struct {
+	X     [][]byte
+	Y     []byte
+	Gamma []byte
+	Phi   []byte
+}
+
+func (ψ *PoKofSignaturePoCorrectForm) fromBytes(c *math.Curve, bytes []byte) error {
+	var rpscf RawPoKofSignaturePoCorrectForm
+	if _, err := asn1.Unmarshal(bytes, &rpscf); err != nil {
+		return fmt.Errorf("malformed proof of signature of correct form: %v", err)
+	}
+
+	var err error
+	ψ.y = c.NewZrFromBytes(rpscf.Y)
+	ψ.Γ, err = c.NewG2FromBytes(rpscf.Gamma)
+	if err != nil {
+		return err
+	}
+
+	ψ.Φ, err = c.NewG1FromBytes(rpscf.Phi)
+	if err != nil {
+		return err
+	}
+
+	ψ.x = make([]*math.Zr, len(rpscf.X))
+	for i := 0; i < len(rpscf.X); i++ {
+		ψ.x[i] = c.NewZrFromBytes(rpscf.X[i])
+	}
+
+	return nil
+}
+
+func (ψ *PoKofSignaturePoCorrectForm) Bytes() []byte {
+	var rpscf RawPoKofSignaturePoCorrectForm
+	rpscf.Y = ψ.y.Bytes()
+	rpscf.Gamma = ψ.Γ.Bytes()
+	rpscf.Phi = ψ.Φ.Bytes()
+	rpscf.X = make([][]byte, 0, len(ψ.x))
+	for _, x := range ψ.x {
+		rpscf.X = append(rpscf.X, x.Bytes())
+	}
+
+	bytes, err := asn1.Marshal(rpscf)
+	if err != nil {
+		panic(err)
+	}
+
+	return bytes
+}
+
+func (ψ *PoKofSignaturePoCorrectForm) Verify(c *math.Curve, ν, hε *math.G1, g2, X, κ *math.G2, Y []*math.G2) error {
 
 	digest := randomOracleForPoKofSignature(ψ.Γ, ψ.Φ, ν, hε, g2, X, κ, Y)
 	e := c.HashToZr(digest)
@@ -509,7 +852,7 @@ func (ψ PoKofSignaturePoCorrectForm) Verify(c *math.Curve, ν, hε *math.G1, g2
 	return nil
 }
 
-func (ψ PoKofSignaturePoCorrectForm) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math.G2, X *math.G2, κ *math.G2, Y []*math.G2) error {
+func (ψ *PoKofSignaturePoCorrectForm) checkcommitmentForm(c *math.Curve, e *math.Zr, g2 *math.G2, X *math.G2, κ *math.G2, Y []*math.G2) error {
 	left := g2.Mul(ψ.y)
 	for i := 0; i < len(ψ.x); i++ {
 		left.Add(Y[i].Mul(ψ.x[i]))

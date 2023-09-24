@@ -40,6 +40,12 @@ func TestBlindCorrectFormProof(t *testing.T) {
 	ξ := proveBlindingIsWellFormed(c, msg, r, a, b, rcm, pp.g, pp.g0, h, u, cm, pp.gs)
 	err := ξ.Verify(c, len(msg), a, b, cm, pp.g, pp.g0, h, u, pp.gs)
 	assert.NoError(t, err)
+
+	rawProof := ξ.Bytes()
+	var ξ2 BlindCorrectFormProof
+	err = ξ2.fromBytes(rawProof, c)
+	assert.NoError(t, err)
+	assert.Equal(t, ξ2, ξ)
 }
 
 func TestProveKnowledgeOfSignature(t *testing.T) {

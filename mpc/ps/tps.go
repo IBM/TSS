@@ -58,6 +58,41 @@ type TPS struct {
 	storedData          *StoredData
 }
 
+func (tps *TPS) SetShareData(shareData []byte) error {
+	tps.storedData = &StoredData{}
+	if _, err := asn1.Unmarshal(shareData, tps.storedData); err != nil {
+		return fmt.Errorf("share data is malformed: %v", err)
+	}
+
+	tps.sk = SK{}
+	if err := tps.sk.fromBytes(tps.Curve, tps.storedData.Sk); err != nil {
+		return err
+	}
+
+	tps.publicKeysOfParties = make(map[uint16][]byte)
+
+	for i, p := range tps.parties {
+		tps.publicKeysOfParties[p] = tps.storedData.PublicKeys[i]
+	}
+
+	return nil
+
+}
+
+func (tps *TPS) Sign(_ context.Context, msg []byte) ([]byte, error) {
+	bs := BlindSignature{}
+	if err := bs.fromBytes(msg, tps.Curve); err != nil {
+		return nil, fmt.Errorf("blind signature malformed: %v", err)
+	}
+
+	σ, err := SignBlindSignature(&tps.pp, bs, tps.sk)
+	if err != nil {
+		return nil, fmt.Errorf("failed signing: %v", err)
+	}
+
+	return σ.Bytes(), nil
+}
+
 type StoredData struct {
 	Sk          []byte
 	PublicKeys  [][]byte
@@ -146,15 +181,15 @@ func (tps *TPS) KeyGen(ctx context.Context) ([]byte, error) {
 	return asn1.Marshal(*tps.storedData)
 }
 
-type PublicKeyWithPP struct {
-	PK []byte
-	PP []byte
+type ThresholdPK struct {
+	TPK        []byte
+	PublicKeys [][]byte
 }
 
 func (tps *TPS) ThresholdPK() ([]byte, error) {
-	pkwpp := PublicKeyWithPP{
-		PP: tps.pp.Bytes(),
-		PK: tps.storedData.ThresholdPK,
+	pkwpp := ThresholdPK{
+		TPK:        tps.storedData.ThresholdPK,
+		PublicKeys: tps.flattenPublicKeys(),
 	}
 
 	return asn1.Marshal(pkwpp)
