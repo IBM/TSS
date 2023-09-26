@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gonum.org/v1/gonum/stat/combin"
 )
 
 func TestThresholdBLS(t *testing.T) {
@@ -53,7 +54,7 @@ func TestThresholdBLS(t *testing.T) {
 		}
 	}()
 
-	shares, start := keygen(t, parties, n)
+	shares, start := keygen(t, parties, n, n-1)
 
 	elapsed := time.Since(start)
 	t.Log("DKG elapsed", elapsed)
@@ -115,6 +116,123 @@ func TestThresholdBLS(t *testing.T) {
 	}
 }
 
+func TestThresholdBLSVarThreshold(t *testing.T) {
+	var tests = []struct {
+		n, threshold, k int
+		mustPass        bool
+	}{
+		//{3, 1, 2, true}, // it seems that t=1 is invalid?!
+		//{3, 2, 1, false},
+		{3, 2, 2, true},
+		{3, 2, 3, true},
+		{5, 2, 2, true},
+		{5, 2, 3, true},
+		//{5, 3, 2, false},
+		{5, 3, 3, true},
+		//{5, 4, 3, false},
+		{5, 4, 4, true},
+		{5, 4, 5, true},
+		{7, 5, 5, true},
+		{15, 10, 11, true},
+		//{31, 21, 22, true}, // fails - DKG timeout
+	}
+
+	for _, tt := range tests {
+		testThresholdBLSVarThreshold(t, tt.n, tt.threshold, tt.k, tt.mustPass)
+	}
+}
+
+func testThresholdBLSVarThreshold(t *testing.T, n, threshold, k int, mustPass bool) {
+	var commParties []*comm.Party
+	var signers []*tlsgen.CertKeyPair
+	var loggers []*commLogger
+	var listeners []net.Listener
+	var stopFuncs []func()
+
+	members, certPool, loggers, signers, listeners, commParties, membershipFunc, parties, kgf := setup(t, n, loggers, signers, listeners, commParties)
+
+	for id := 1; id <= n; id++ {
+		stop, s := createParty(id, kgf, signers[id-1], n, certPool, listeners, loggers, commParties, membershipFunc)
+		parties = append(parties, s)
+		stopFuncs = append(stopFuncs, stop)
+	}
+
+	defer func() {
+		for _, stop := range stopFuncs {
+			stop()
+		}
+	}()
+
+	shares, start := keygen(t, parties, n, threshold)
+
+	elapsed := time.Since(start)
+	t.Log("DKG elapsed", elapsed)
+
+	// Create the threshold signers.
+	thresholdSigners := make([]*bls.TBLS, n)
+	for id := 1; id <= n; id++ {
+		thresholdSigners[id-1] = &bls.TBLS{
+			Logger: logger(id, t.Name()),
+			Party:  uint16(id),
+		}
+	}
+
+	// Initialize them with a nil send function
+	for i, signer := range thresholdSigners {
+		signer.Init(members, threshold, nil)
+		signer.SetShareData(shares[i])
+	}
+
+	var signatures [][]byte
+
+	// Sign a message
+	msg := []byte("Three can keep a secret, if two of them are dead.")
+	digest := sha256Digest(msg)
+	for _, signer := range thresholdSigners {
+		sig, err := signer.Sign(nil, digest)
+		assert.NoError(t, err)
+		signatures = append(signatures, sig)
+	}
+
+	// check that all signers return the same pk?!
+	var pk []byte
+	for _, signer := range thresholdSigners {
+		pki, err := signer.ThresholdPK()
+		assert.NoError(t, err)
+		if pk == nil {
+			pk = pki
+		} else {
+			assert.Equal(t, pk, pki)
+		}
+	}
+
+	// create a verifier
+	var v bls.Verifier
+	err := v.Init(pk)
+	assert.NoError(t, err)
+
+	var sig []byte
+	for _, p := range combin.Combinations(k, threshold) {
+		var sigs [][]byte
+		var partyIDs []uint16
+
+		for _, i := range p {
+			sigs = append(sigs, signatures[i])
+			partyIDs = append(partyIDs, uint16(i+1))
+		}
+
+		sig, err = v.AggregateSignatures(sigs, partyIDs)
+		assert.NoError(t, err)
+	}
+
+	err = v.Verify(digest, sig)
+	if mustPass {
+		assert.NoError(t, err)
+	} else {
+		assert.Error(t, err)
+	}
+}
+
 func TestBenchmark(t *testing.T) {
 	var commParties []*comm.Party
 	var signers []*tlsgen.CertKeyPair
@@ -138,7 +256,7 @@ func TestBenchmark(t *testing.T) {
 		}
 	}()
 
-	shares, start := keygen(t, parties, n)
+	shares, start := keygen(t, parties, n, n-1)
 
 	elapsed := time.Since(start)
 	t.Log("DKG elapsed", elapsed)
@@ -264,7 +382,7 @@ func BenchmarkParallelInvocation(b *testing.B) {
 		}
 	}()
 
-	shares, start := keygen(b, parties, n)
+	shares, start := keygen(b, parties, n, n-1)
 
 	elapsed := time.Since(start)
 	b.Log("DKG elapsed", elapsed)
@@ -351,7 +469,7 @@ func BenchmarkParallelInvocation(b *testing.B) {
 var gsig []byte
 var gerr error
 
-func keygen(t TestingT, parties []MpcParty, n int) ([][]byte, time.Time) {
+func keygen(t TestingT, parties []MpcParty, n int, threshold int) ([][]byte, time.Time) {
 	var wg sync.WaitGroup
 	wg.Add(len(parties))
 
@@ -362,7 +480,7 @@ func keygen(t TestingT, parties []MpcParty, n int) ([][]byte, time.Time) {
 	for i, p := range parties {
 		go func(i int, p MpcParty) {
 			defer wg.Done()
-			secretShareData, err := p.KeyGen(ctx, len(parties), n-1)
+			secretShareData, err := p.KeyGen(ctx, len(parties), threshold)
 			shares[i] = secretShareData
 			assert.NoError(t, err)
 			assert.NotNil(t, secretShareData)

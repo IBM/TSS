@@ -8,6 +8,7 @@ require (
 	github.com/IBM/TSS/mpc/bls v0.0.0-20230831100430-0b667a5e3f1c
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.24.0
+	gonum.org/v1/gonum v0.14.0
 )
 
 require (
