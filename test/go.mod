@@ -6,12 +6,13 @@ require (
 	github.com/IBM/TSS/mpc/binance/ecdsa v0.0.0-20230831100430-0b667a5e3f1c
 	github.com/IBM/TSS/mpc/binance/eddsa v0.0.0-20230831100430-0b667a5e3f1c
 	github.com/IBM/TSS/mpc/bls v0.0.0-20230831100430-0b667a5e3f1c
+	github.com/IBM/TSS/mpc/ps v0.0.0-20230926080141-a58335329fb1
+	github.com/IBM/mathlib v0.0.3-0.20230831091907-c532c4d3b65c
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/zap v1.24.0
+	go.uber.org/zap v1.26.0
 )
 
 require (
-	github.com/IBM/mathlib v0.0.3-0.20230831091907-c532c4d3b65c // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.9.1 // indirect
 	github.com/hyperledger/fabric-amcl v0.0.0-20230602173724-9e02669dceb2 // indirect
@@ -44,7 +45,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/whyrusleeping/go-logging v0.0.0-20170515211332-0457bb6b88fc // indirect
 	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
