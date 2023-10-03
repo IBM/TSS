@@ -4,6 +4,7 @@ Currently, the build-in supported schemes are:
  - ECDSA (binance's [tss-lib](https://github.com/bnb-chain/tss-lib))
  - EdDSA (binance's [tss-lib](https://github.com/bnb-chain/tss-lib))
  - BLS   (builtin implementation)
+ - [PS](https://github.com/IBM/TSS/tree/main/mpc/ps) (Pointcheval-Sanders)
 
 ### Repository structure:
 
