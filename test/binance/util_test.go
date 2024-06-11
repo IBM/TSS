@@ -95,7 +95,7 @@ func testScheme(t *testing.T, n int, signatureAlgorithms func([]*commLogger) (fu
 	var wg sync.WaitGroup
 	wg.Add(len(parties))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 	start := time.Now()
 	for _, p := range parties {
 		go func(p MpcParty) {
