@@ -22,10 +22,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bnb-chain/tss-lib/common"
-	"github.com/bnb-chain/tss-lib/ecdsa/keygen"
-	"github.com/bnb-chain/tss-lib/ecdsa/signing"
-	"github.com/bnb-chain/tss-lib/tss"
+	"github.com/bnb-chain/tss-lib/v2/common"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
+	"github.com/bnb-chain/tss-lib/v2/ecdsa/signing"
+	"github.com/bnb-chain/tss-lib/v2/tss"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -36,7 +36,6 @@ const (
 )
 
 func init() {
-	tss.SetCurve(elliptic.P256())
 	tss.RegisterCurve("elliptic.p256Curve", elliptic.P256())
 }
 
@@ -236,7 +235,7 @@ func (p *party) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
 
 	defer close(p.closeChan)
 
-	end := make(chan common.SignatureData, 1)
+	end := make(chan *common.SignatureData, 1)
 
 	msgToSign := hashToInt(msgHash, elliptic.P256())
 	party := signing.NewLocalParty(msgToSign, p.params, *p.shareData, p.out, end)
@@ -310,7 +309,7 @@ func (p *party) KeyGen(ctx context.Context) ([]byte, error) {
 		panic(err)
 	}
 
-	end := make(chan keygen.LocalPartySaveData, 1)
+	end := make(chan *keygen.LocalPartySaveData, 1)
 	party := keygen.NewLocalParty(p.params, p.out, end, *preParams)
 
 	var endWG sync.WaitGroup
@@ -331,7 +330,7 @@ func (p *party) KeyGen(ctx context.Context) ([]byte, error) {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("DKG timed out: %w", ctx.Err())
 		case dkgOut := <-end:
-			dkgRawOut, err := json.Marshal(dkgOut)
+			dkgRawOut, err := json.Marshal(*dkgOut)
 			if err != nil {
 				return nil, fmt.Errorf("failed serializing DKG output: %w", err)
 			}
