@@ -201,11 +201,25 @@ func ServiceConnections(listener net.Listener, p2id participant2ID, l Logger) (<
 	inMsgs := make(chan InMsg)
 
 	go func() {
+		var tempDelay time.Duration // how long to sleep on accept failure
 		for atomic.LoadUint32(&stopFlag) == 0 {
 			conn, err := listener.Accept()
 			if err != nil {
+				if ne, ok := err.(net.Error); ok && ne.Timeout() {
+					if tempDelay == 0 {
+						tempDelay = 5 * time.Millisecond
+					} else {
+						tempDelay *= 2
+					}
+					if max := 1 * time.Second; tempDelay > max {
+						tempDelay = max
+					}
+					time.Sleep(tempDelay)
+					continue
+				}
 				return
 			}
+			tempDelay = 0
 
 			go handleConn(p2id, conn, inMsgs, &stopFlag, l)
 		}
