@@ -9,6 +9,7 @@ package ecdsa
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"fmt"
 	"math/big"
 	"sync"
@@ -108,9 +109,9 @@ func (parties parties) Mapping() map[string]*tss.PartyID {
 }
 
 func TestTSS(t *testing.T) {
-	pA := NewParty(1, logger("pA", t.Name()))
-	pB := NewParty(2, logger("pB", t.Name()))
-	pC := NewParty(3, logger("pC", t.Name()))
+	pA := NewParty(1, elliptic.P256(), logger("pA", t.Name()))
+	pB := NewParty(2, elliptic.P256(), logger("pB", t.Name()))
+	pC := NewParty(3, elliptic.P256(), logger("pC", t.Name()))
 
 	t.Logf("Created parties")
 
