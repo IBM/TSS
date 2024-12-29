@@ -49,6 +49,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
+replace github.com/IBM/TSS/mpc/binance/ecdsa => ../mpc/binance/ecdsa
+
 replace github.com/IBM/TSS/mpc/bls => ../mpc/bls
 
 replace github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
