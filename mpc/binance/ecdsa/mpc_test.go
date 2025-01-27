@@ -9,6 +9,7 @@ package ecdsa
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"fmt"
 	"math/big"
 	"sync"
@@ -17,6 +18,10 @@ import (
 	"time"
 
 	"github.com/bnb-chain/tss-lib/v2/tss"
+	"github.com/btcsuite/btcd/btcec/v2"
+	s256k1 "github.com/btcsuite/btcd/btcec/v2"
+	btcecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
@@ -108,45 +113,76 @@ func (parties parties) Mapping() map[string]*tss.PartyID {
 }
 
 func TestTSS(t *testing.T) {
-	pA := NewParty(1, logger("pA", t.Name()))
-	pB := NewParty(2, logger("pB", t.Name()))
-	pC := NewParty(3, logger("pC", t.Name()))
-
-	t.Logf("Created parties")
-
-	parties := parties{pA, pB, pC}
-	parties.init(senders(parties))
-
-	t.Logf("Running DKG")
-
-	t1 := time.Now()
-	shares, err := parties.keygen()
-	assert.NoError(t, err)
-	t.Logf("DKG elapsed %s", time.Since(t1))
-
-	parties.init(senders(parties))
-
-	parties.setShareData(shares)
-	t.Logf("Signing")
-
-	msgToSign := []byte("bla bla")
-
-	t.Logf("Signing message")
-	t1 = time.Now()
-	sigs, err := parties.sign(digest(msgToSign))
-	assert.NoError(t, err)
-	t.Logf("Signing completed in %v", time.Since(t1))
-
-	sigSet := make(map[string]struct{})
-	for _, s := range sigs {
-		sigSet[string(s)] = struct{}{}
+	curves := []elliptic.Curve{
+		elliptic.P256(),
+		s256k1.S256(),
 	}
-	assert.Len(t, sigSet, 1)
 
-	pk, err := parties[0].TPubKey()
-	assert.NoError(t, err)
+	for _, tc := range curves {
+		t.Run(tc.Params().Name, func(t *testing.T) {
+			pA := NewParty(1, tc, logger("pA", t.Name()))
+			pB := NewParty(2, tc, logger("pB", t.Name()))
+			pC := NewParty(3, tc, logger("pC", t.Name()))
 
-	assert.True(t, ecdsa.VerifyASN1(pk, digest(msgToSign), sigs[0]))
+			t.Logf("Created parties")
+
+			parties := parties{pA, pB, pC}
+			parties.init(senders(parties))
+
+			t.Logf("Running DKG")
+
+			t1 := time.Now()
+			shares, err := parties.keygen()
+			assert.NoError(t, err)
+			t.Logf("DKG elapsed %s", time.Since(t1))
+
+			parties.init(senders(parties))
+
+			parties.setShareData(shares)
+			t.Logf("Signing")
+
+			msgToSign := []byte("bla bla")
+
+			t.Logf("Signing message")
+			t1 = time.Now()
+			sigs, err := parties.sign(digest(msgToSign))
+			assert.NoError(t, err)
+			t.Logf("Signing completed in %v", time.Since(t1))
+
+			sigSet := make(map[string]struct{})
+			for _, s := range sigs {
+				sigSet[string(s)] = struct{}{}
+			}
+			assert.Len(t, sigSet, 1)
+
+			pk, err := parties[0].TPubKey()
+			assert.NoError(t, err)
+
+			assert.True(t, verifySignature(tc.Params().Name, pk, msgToSign, sigs[0]))
+		})
+	}
+}
+
+func verifySignature(curveName string, pk *ecdsa.PublicKey, msg []byte, sig []byte) bool {
+	switch curveName {
+	case elliptic.P256().Params().Name:
+		return ecdsa.VerifyASN1(pk, digest(msg), sig)
+	case s256k1.S256().Params().Name:
+		// convert pk to s256k1.PublicKey
+		xFieldVal, yFieldVal := new(secp256k1.FieldVal), new(secp256k1.FieldVal)
+		xFieldVal.SetByteSlice(pk.X.Bytes())
+		yFieldVal.SetByteSlice(pk.Y.Bytes())
+		btcecPubKey := btcec.NewPublicKey(xFieldVal, yFieldVal)
+
+		signature, err := btcecdsa.ParseDERSignature(sig)
+		if err != nil {
+			return false
+		}
+
+		return signature.Verify(digest(msg), btcecPubKey)
+	}
+
+	return false
 }
 
 func senders(parties parties) []Sender {

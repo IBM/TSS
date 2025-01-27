@@ -26,6 +26,9 @@ import (
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/keygen"
 	"github.com/bnb-chain/tss-lib/v2/ecdsa/signing"
 	"github.com/bnb-chain/tss-lib/v2/tss"
+	"github.com/btcsuite/btcd/btcec/v2"
+	s256k1 "github.com/btcsuite/btcd/btcec/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 )
@@ -106,14 +109,20 @@ type party struct {
 	in        chan tss.Message
 	shareData *keygen.LocalPartySaveData
 	closeChan chan struct{}
+	curve     elliptic.Curve
 }
 
-func NewParty(id uint16, logger Logger) *party {
+func NewParty(id uint16, curve elliptic.Curve, logger Logger) *party {
+	if curve == nil {
+		curve = s256k1.S256()
+	}
+
 	return &party{
 		logger: logger,
 		id:     tss.NewPartyID(fmt.Sprintf("%d", id), "", big.NewInt(int64(id))),
 		out:    make(chan tss.Message, 1000),
 		in:     make(chan tss.Message, 1000),
+		curve:  curve,
 	}
 }
 
@@ -190,7 +199,17 @@ func (p *party) ThresholdPK() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return x509.MarshalPKIXPublicKey(pk)
+
+	switch p.curve.Params().Name {
+	case string(tss.Secp256k1):
+		xFieldVal, yFieldVal := new(secp256k1.FieldVal), new(secp256k1.FieldVal)
+		xFieldVal.SetByteSlice(pk.X.Bytes())
+		yFieldVal.SetByteSlice(pk.Y.Bytes())
+		btcecPubKey := btcec.NewPublicKey(xFieldVal, yFieldVal)
+		return btcecPubKey.SerializeCompressed(), nil
+	default:
+		return x509.MarshalPKIXPublicKey(pk)
+	}
 }
 
 func (p *party) SetShareData(shareData []byte) error {
@@ -199,9 +218,9 @@ func (p *party) SetShareData(shareData []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed deserializing shares: %w", err)
 	}
-	localSaveData.ECDSAPub.SetCurve(elliptic.P256())
+	localSaveData.ECDSAPub.SetCurve(p.curve)
 	for _, xj := range localSaveData.BigXj {
-		xj.SetCurve(elliptic.P256())
+		xj.SetCurve(p.curve)
 	}
 	p.shareData = &localSaveData
 	return nil
@@ -210,7 +229,7 @@ func (p *party) SetShareData(shareData []byte) error {
 func (p *party) Init(parties []uint16, threshold int, sendMsg func(msg []byte, isBroadcast bool, to uint16)) {
 	partyIDs := partyIDsFromNumbers(parties)
 	ctx := tss.NewPeerContext(partyIDs)
-	p.params = tss.NewParameters(elliptic.P256(), ctx, p.id, len(parties), threshold)
+	p.params = tss.NewParameters(p.curve, ctx, p.id, len(parties), threshold)
 	p.id.Index = p.locatePartyIndex(p.id)
 	p.sendMsg = sendMsg
 	p.closeChan = make(chan struct{})
@@ -237,7 +256,7 @@ func (p *party) Sign(ctx context.Context, msgHash []byte) ([]byte, error) {
 
 	end := make(chan *common.SignatureData, 1)
 
-	msgToSign := hashToInt(msgHash, elliptic.P256())
+	msgToSign := hashToInt(msgHash, p.curve)
 	party := signing.NewLocalParty(msgToSign, p.params, *p.shareData, p.out, end)
 
 	var endWG sync.WaitGroup
